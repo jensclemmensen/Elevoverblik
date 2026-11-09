@@ -5,6 +5,10 @@ Versionsnummeret står også øverst i programmet ved siden af "Elevoverblik".
 
 ---
 
+## v9 – 9. november 2026
+**Skalaen vises med lille grå skrift på elevkortene**
+- I karakterskemaerne på elevfanen står skalaen (f.eks. "7-trinsskala" eller "Point") nu med mindre grå skrift efter kategoriens navn, ligesom på karakterfanen.
+
 ## v8 – 9. november 2026
 **Ny overskrift på kortene i elevfanen**
 - Kortenes top viser nu klasse og samtale med stor skrift, f.eks. **8.c 1. skole-hjem**, og datoen med lille skrift under, f.eks. *2. Nov. 2026*.
