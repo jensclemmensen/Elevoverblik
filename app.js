@@ -479,7 +479,8 @@ function htmlElev() {
 }
 
 function tekstFelt(overskrift, tekst) {
-  return `<section><h4>${overskrift}</h4>${tekst ? `<p class="tekst">${esc(tekst)}</p>` : '<p class="tom-felt">–</p>'}</section>`;
+  // Tomme felter vises ikke på kortet (men står stadig i redigér-dialogen)
+  return tekst ? `<section><h4>${overskrift}</h4><p class="tekst">${esc(tekst)}</p></section>` : '';
 }
 function samtaleTitel(s) {
   if (s.titel) return s.titel;
