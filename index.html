@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!--
+  Sikkerhed: connect-src 'none' og form-action 'none' betyder, at browseren
+  blokerer ALLE forsøg fra denne side på at sende data ud på nettet.
+  Elevdata bliver derfor i den fil, du selv vælger.
+-->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'; frame-src 'none'">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Elevoverblik</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="top">
+  <h1>Elevoverblik</h1>
+  <nav id="nav" hidden>
+    <button data-act="vis" data-vis="elev">Elev</button>
+    <button data-act="vis" data-vis="klasse">Karakterer</button>
+    <button data-act="vis" data-vis="opsaetning">Opsætning</button>
+  </nav>
+  <div id="filstatus"></div>
+</header>
+
+<main id="main"></main>
+
+<dialog id="dlg"></dialog>
+<div id="toast" role="status" hidden></div>
+
+<script src="testdata.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
