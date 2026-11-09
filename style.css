@@ -109,18 +109,24 @@ details.filter summary { cursor: pointer; color: var(--daempet); font-size: 14px
 details.filter .chips { margin-top: 8px; }
 
 .tidslinje-top { display: flex; align-items: flex-start; gap: 6px; margin: -4px 0 10px; min-height: 30px; }
+/* Tidslinjen er et gitter: hvert kort er en kolonne, og samtalekortenes rækker
+   (top, tekst, én pr. karakterkategori, fod) flugter på tværs af kortene. */
 .tidslinje {
-  display: flex; align-items: flex-start; gap: 16px;
+  display: grid; grid-auto-flow: column; grid-auto-columns: max-content;
+  column-gap: 16px; row-gap: 0;
   overflow-x: auto; padding: 2px 2px 18px;
   scroll-snap-type: x proximity;
 }
 .kort {
-  flex: 0 0 360px; scroll-snap-align: start;
+  width: 360px; scroll-snap-align: start; align-self: start;
   background: var(--flade);
   border: 1px solid var(--kant); border-top: 4px solid var(--accent); border-radius: var(--radius);
   padding: 12px 16px 14px;
 }
-.kort.aftale { flex-basis: 280px; border-top-color: var(--aftale); background: var(--aftale-lys); }
+.kort.ekstra { width: 300px; border-top-color: #6b7a99; }
+.kort.ekstra .type { color: #55627d; }
+.kort.ekstra > .tekst { margin-top: 10px; }
+.kort.aftale { width: 280px; border-top-color: var(--aftale); background: var(--aftale-lys); }
 .kort.siden { border-style: dashed; border-top: 4px dashed #9aa3b4; background: #fafbfc; }
 .kort header { position: relative; padding-right: 70px; }
 .kort .type { font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--accent); }
@@ -136,12 +142,20 @@ details.filter .chips { margin-top: 8px; }
 .kort > .tekst { margin-top: 10px; }
 .kort-fod { margin-top: 12px; }
 
-.kort.samtale, .kort.siden { flex: 0 0 auto; min-width: 360px; max-width: 760px; }
+.kort.samtale, .kort.siden {
+  display: grid; grid-template-rows: subgrid; row-gap: 0; align-self: stretch;
+  width: auto; min-width: 360px; max-width: 760px;
+}
+.kort .tekst-del { display: flex; flex-direction: column; }
+.kort .karakter-overskrift { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--kant-lys); }
+.kort .tekst-del > section + .karakter-overskrift { margin-top: 14px; }
+.kort .tekst-del > section:last-of-type { margin-bottom: auto; }
+.kort-fod:empty { display: none; }
 /* Teksten må ikke gøre kortet bredere – kun karakterskemaerne bestemmer bredden */
-.kort .tekst-del, .kort .forklaring, .kort .tom-felt { width: 0; min-width: 100%; }
+.kort .tekst-del, .kort .forklaring, .kort .tom-felt, .kort-fod { width: 0; min-width: 100%; }
 
 /* Små karakterskemaer på kortene (samme udseende som fanen Karakterer) */
-.kskema-ramme { overflow-x: auto; margin-top: 8px; border: 1px solid var(--kant); border-radius: 8px; }
+.kskema-ramme { overflow-x: auto; margin-top: 8px; background: var(--flade); border: 1px solid var(--kant); border-radius: 8px; }
 table.kskema { border-collapse: separate; border-spacing: 0; font-size: 13px; width: 100%; }
 .kskema th, .kskema td { border-right: 1px solid var(--kant-lys); border-bottom: 1px solid var(--kant-lys); }
 .kskema tr > :last-child { border-right: none; }

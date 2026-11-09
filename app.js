@@ -354,6 +354,11 @@ function render() {
   main.innerHTML = UI.vis === 'klasse' ? htmlKlasse() : UI.vis === 'opsaetning' ? htmlOpsaetning() : htmlElev();
 
   const nyTl = $('.tidslinje');
+  if (nyTl) {
+    const n = Number(nyTl.dataset.raekker);
+    nyTl.style.gridTemplateRows = `repeat(${n}, auto)`;
+    $$('.kort', nyTl).forEach((k) => { k.style.gridRow = `span ${n}`; });
+  }
   if (nyTl) nyTl.scrollLeft = rulTilSlut || gammel.tl == null ? nyTl.scrollWidth : gammel.tl;
   const nyGw = $('.grid-wrap');
   if (nyGw && gammel.gx != null) { nyGw.scrollLeft = gammel.gx; nyGw.scrollTop = gammel.gy; }
@@ -435,9 +440,10 @@ function htmlElev() {
   const relevante = D.opgaver.filter((o) => o.klasseId === elev.klasseId || elevK.has(o.id));
   const opgFor = (aar, nummer) => relevante.filter((o) => skoleaar(o.dato) === aar && (nummer === 1 ? o.periode === 1 : o.periode >= 2));
 
+  // Først samles kortene; html laves bagefter, når vi kender alle kategorier
   const kort = [
-    ...samtaler.map((o) => ({ dato: o.dato, orden: 0, html: htmlSamtaleKort(o, elev, o.nummer ? opgFor(skoleaar(o.dato), o.nummer) : [], elevK) })),
-    ...aftaler.map((o) => ({ dato: o.dato, orden: 1, html: htmlAftaleKort(o, elev) })),
+    ...samtaler.map((o) => ({ dato: o.dato, orden: 0, type: o.nummer ? 'samtale' : 'ekstra', o, opg: o.nummer ? opgFor(skoleaar(o.dato), o.nummer) : [] })),
+    ...aftaler.map((o) => ({ dato: o.dato, orden: 1, type: 'aftale', o, opg: [] })),
   ];
   // Pladsholderkort for samtaler, der ikke er oprettet endnu, men som allerede har karakterer
   const aarMedKarakterer = new Set(relevante.filter((o) => elevK.has(o.id)).map((o) => skoleaar(o.dato)));
@@ -447,11 +453,20 @@ function htmlElev() {
       const opg = opgFor(aar, n);
       const medKarakter = opg.filter((o) => elevK.has(o.id));
       if (!medKarakter.length) continue;
-      kort.push({ dato: medKarakter.map((o) => o.dato).sort().pop(), orden: 2, html: htmlPladsholderKort(n, aar, elev, opg, elevK) });
+      kort.push({ dato: medKarakter.map((o) => o.dato).sort().pop(), orden: 2, type: 'pladsholder', n, aar, opg });
     }
   }
   kort.sort((a, b) => a.dato.localeCompare(b.dato) || a.orden - b.orden);
-  const html = kort.map((k) => k.html);
+
+  // Kategorier, der optræder på mindst ét kort – hver får sin egen vandrette række
+  const brugte = new Set(kort.flatMap((k) => k.opg.map((o) => o.kategoriId)));
+  const kats = D.kategorier.filter((k) => brugte.has(k.id) && !UI.skjulteKategorier.includes(k.id));
+  const raekker = 2 + kats.length + 1; // top, tekst, én pr. kategori, fod
+  const html = kort.map((k) =>
+    k.type === 'samtale' ? htmlSamtaleKort(k.o, elev, k.opg, elevK, kats)
+      : k.type === 'pladsholder' ? htmlPladsholderKort(k.n, k.aar, elev, k.opg, elevK, kats)
+        : k.type === 'ekstra' ? htmlEkstraKort(k.o, elev)
+          : htmlAftaleKort(k.o, elev));
 
   h += `<div class="tidslinje-top">${filter}<span class="spacer"></span>${html.length > 1 ? `
     <button class="ikon" data-act="rul" data-retning="-1" title="Rul tilbage i tiden">‹</button>
@@ -460,7 +475,7 @@ function htmlElev() {
     return h + tomTilstand(`Ingen samtaler eller aftaler for ${esc(elev.navn)} endnu.`,
       'Klik på <b>+ Skole-hjem-samtale</b> eller <b>+ Aftale</b> for at oprette det første kort.');
   }
-  return h + `<div class="tidslinje">${html.join('')}</div>`;
+  return h + `<div class="tidslinje" data-raekker="${raekker}">${html.join('')}</div>`;
 }
 
 function tekstFelt(overskrift, tekst) {
@@ -475,10 +490,13 @@ function klasseVed(elev, dato) {
   const k = find('klasser', elev.klasseId);
   return k ? klasseNavn(k, dato) : '';
 }
-function htmlSamtaleKort(s, elev, opgaver, elevK) {
+// Samtale- og pladsholderkort er delt op i rækker (top, tekst, én pr. kategori, fod),
+// som flugter på tværs af kortene (CSS subgrid).
+function htmlSamtaleKort(s, elev, opgaver, elevK, kats) {
+  const k = htmlKarakterRaekker(opgaver, elevK, s.nummer, kats);
   return `<article class="kort samtale">
     <header>
-      <span class="type">${SAMTALE_NAVN[s.nummer] || 'Skole-hjem-samtale'}</span>
+      <span class="type">${SAMTALE_NAVN[s.nummer]}</span>
       <h3>${esc(samtaleTitel(s))}</h3>
       <div class="meta">${visDato(s.dato)} · ${esc(klasseVed(elev, s.dato))}</div>
       <button class="rediger" data-act="rediger-samtale" data-id="${s.id}">Redigér</button>
@@ -487,19 +505,34 @@ function htmlSamtaleKort(s, elev, opgaver, elevK) {
       ${tekstFelt('Punkter at tale om', s.punkter)}
       ${tekstFelt('Noter fra samtalen', s.noter)}
       ${tekstFelt('Aftaler', s.aftaler)}
+      ${k.overskrift}
     </div>
-    ${s.nummer ? htmlKarakterSektion(opgaver, elevK, s.nummer) : ''}
+    ${k.celler}
+    <div class="kort-fod">${k.forklaring}</div>
   </article>`;
 }
-function htmlPladsholderKort(n, aar, elev, opgaver, elevK) {
+function htmlPladsholderKort(n, aar, elev, opgaver, elevK, kats) {
+  const k = htmlKarakterRaekker(opgaver, elevK, n, kats);
   return `<article class="kort siden">
     <header>
       <span class="type">${SAMTALE_NAVN[n]}</span>
       <h3>Ikke oprettet endnu</h3>
       <div class="meta">Skoleåret ${skoleaarTekst(aar)} · ${esc(klasseVed(elev, skoleaarStart(aar)))}</div>
     </header>
-    ${htmlKarakterSektion(opgaver, elevK, n)}
-    <div class="kort-fod"><button data-act="ny-samtale" data-nummer="${n}" data-aar="${aar}">+ Opret samtalen</button></div>
+    <div class="tekst-del">${k.overskrift}</div>
+    ${k.celler}
+    <div class="kort-fod">${k.forklaring}<button data-act="ny-samtale" data-nummer="${n}" data-aar="${aar}">+ Opret samtalen</button></div>
+  </article>`;
+}
+function htmlEkstraKort(s, elev) {
+  return `<article class="kort ekstra">
+    <header>
+      <span class="type">${SAMTALE_NAVN[0]}</span>
+      <h3>${esc(samtaleTitel(s))}</h3>
+      <div class="meta">${visDato(s.dato)} · ${esc(klasseVed(elev, s.dato))}</div>
+      <button class="rediger" data-act="rediger-samtale" data-id="${s.id}">Redigér</button>
+    </header>
+    ${s.noter ? `<p class="tekst">${esc(s.noter)}</p>` : ''}
   </article>`;
 }
 function htmlAftaleKort(a, elev) {
@@ -513,20 +546,20 @@ function htmlAftaleKort(a, elev) {
     ${a.tekst ? `<p class="tekst">${esc(a.tekst)}</p>` : ''}
   </article>`;
 }
-/** Karakterer på et kort: ét lille skema pr. kategori, som på fanen Karakterer. */
-function htmlKarakterSektion(opgaver, elevK, nummer) {
-  const skemaer = [];
-  let harEfter = false;
-  for (const kat of D.kategorier) {
-    if (UI.skjulteKategorier.includes(kat.id)) continue;
+/** Karakterer på et kort: ét lille skema pr. kategori (samme udseende som fanen Karakterer).
+    Returnerer én celle pr. kategori i 'kats' – tom, hvis kortet ikke har karakterer i kategorien. */
+function htmlKarakterRaekker(opgaver, elevK, nummer, kats) {
+  let harEfter = false, antal = 0;
+  const celler = kats.map((kat) => {
     const kol = opgaver.filter((o) => o.kategoriId === kat.id).sort(sorterOpg);
-    if (!kol.length) continue;
+    if (!kol.length) return '<div class="kat-celle tom"></div>';
+    antal++;
     // Tyk streg før den første opgave, der er givet efter samtalen (kun på 2. samtale)
     const streg = nummer === 2 ? kol.findIndex((o) => o.periode === 3) : -1;
     if (streg >= 0) harEfter = true;
     const c = (i) => (i === streg ? 'efter' : '');
     const erTal = SKALAER[kat.skala].tal;
-    skemaer.push(`<div class="kskema-ramme"><table class="kskema">
+    return `<div class="kat-celle"><div class="kskema-ramme"><table class="kskema">
       <thead>
         <tr><th class="kat" colspan="${kol.length}">${esc(kat.navn)} <span class="skala">${SKALAER[kat.skala].navn}</span></th></tr>
         <tr>${kol.map((o, i) => `<th class="${c(i)}" title="${esc(PERIODER[o.periode])}"><span class="opg-navn">${esc(o.navn || '(uden navn)')}</span><span class="opg-dato">${visDato(o.dato)}</span></th>`).join('')}</tr>
@@ -538,13 +571,13 @@ function htmlKarakterSektion(opgaver, elevK, nummer) {
         const titel = [erTal ? '' : v, kom].filter(Boolean).join('\n');
         return `<td class="${c(i)}${kom ? ' har-kom' : ''}${erTal ? '' : ' tekst-v'}" title="${esc(titel)}">${v ? esc(v) : '<span class="tom-v">–</span>'}</td>`;
       }).join('')}</tr></tbody>
-    </table></div>`);
-  }
-  return `<section class="karakterer">
-    <h4>Karakterer og vurderinger</h4>
-    ${skemaer.length ? skemaer.join('') : '<p class="tom-felt">Ingen karakterer knyttet til denne samtale endnu</p>'}
-    ${harEfter ? '<p class="forklaring"><span class="streg-eks"></span>Til højre for den tykke streg: givet efter samtalen</p>' : ''}
-  </section>`;
+    </table></div></div>`;
+  }).join('');
+  return {
+    overskrift: `<h4 class="karakter-overskrift">Karakterer og vurderinger${antal ? '' : ' <small>– ingen endnu</small>'}</h4>`,
+    celler,
+    forklaring: harEfter ? '<p class="forklaring"><span class="streg-eks"></span>Til højre for den tykke streg: givet efter samtalen</p>' : '',
+  };
 }
 
 // ---------- Klassevisning: karakterskema ----------
@@ -752,9 +785,18 @@ async function redigerSamtale(id, forslag = null) {
     <div class="raekke">${datoFelt('dato', dato)}
       <label>Hvilken samtale<select name="nummer">${[1, 2, 0].map((n) => `<option value="${n}" ${n === nummer ? 'selected' : ''}>${SAMTALE_NAVN[n]}${n ? '' : ' (uden karakterer)'}</option>`).join('')}</select></label></div>
     <label>Titel <input name="titel" value="${esc(s?.titel || '')}" placeholder="Udfyldes automatisk, f.eks. 'Efterår 2026'"></label>
-    <label>Punkter at tale om<textarea name="punkter" rows="4">${esc(s?.punkter || '')}</textarea></label>
-    <label>Noter fra samtalen<textarea name="noter" rows="4">${esc(s?.noter || '')}</textarea></label>
-    <label>Aftaler<textarea name="aftaler" rows="3">${esc(s?.aftaler || '')}</textarea></label>`, {
+    <label class="kun-fast">Punkter at tale om<textarea name="punkter" rows="4">${esc(s?.punkter || '')}</textarea></label>
+    <label><span class="noter-label">Noter fra samtalen</span><textarea name="noter" rows="4">${esc(s?.noter || '')}</textarea></label>
+    <label class="kun-fast">Aftaler<textarea name="aftaler" rows="3">${esc(s?.aftaler || '')}</textarea></label>`, {
+    efterAabning: (f) => {
+      const sel = $('select[name=nummer]', f);
+      const opdater = () => {
+        const ekstra = sel.value === '0';
+        $$('.kun-fast', f).forEach((el) => { el.hidden = ekstra; });
+        $('.noter-label', f).textContent = ekstra ? 'Noter' : 'Noter fra samtalen';
+      };
+      sel.addEventListener('change', opdater); opdater();
+    },
     slet: !!s, bred: true,
     valider: (v) => {
       const n = Number(v.nummer);
@@ -768,6 +810,11 @@ async function redigerSamtale(id, forslag = null) {
     D.samtaler = D.samtaler.filter((x) => x !== s);
   } else {
     const felter = { dato: r.v.dato, nummer: Number(r.v.nummer), titel: r.v.titel.trim(), punkter: r.v.punkter.trim(), noter: r.v.noter.trim(), aftaler: r.v.aftaler.trim() };
+    if (felter.nummer === 0) {
+      // En ekstra samtale har kun ét tekstfelt – eventuel tekst fra de andre felter flyttes dertil
+      felter.noter = [felter.punkter, felter.noter, felter.aftaler].filter(Boolean).join('\n\n');
+      felter.punkter = ''; felter.aftaler = '';
+    }
     if (s) Object.assign(s, felter); else D.samtaler.push({ id: uid(), elevId: elev.id, ...felter });
   }
   aendret(); render();
