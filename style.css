@@ -90,6 +90,10 @@ label.inline { display: inline-flex; align-items: center; gap: 8px; font-weight:
 }
 .chip input { margin: 0; accent-color: var(--accent); }
 .chip:has(input:checked) { background: var(--accent-lys); border-color: #a9bff0; color: var(--accent); }
+.chips[data-sorterbar] .chip { cursor: grab; touch-action: none; padding-left: 6px; }
+.chip .greb { color: #a3abbb; font-size: 11px; letter-spacing: -2px; margin-right: 1px; }
+.chip.traekkes { cursor: grabbing; opacity: .85; box-shadow: 0 4px 14px rgba(20, 30, 50, .22); transform: scale(1.04); position: relative; z-index: 5; }
+body.traekker, body.traekker * { cursor: grabbing !important; user-select: none; }
 
 .tom { text-align: center; padding: 56px 16px; color: var(--daempet); }
 .tom-titel { font-size: 17px; color: var(--tekst); font-weight: 600; }

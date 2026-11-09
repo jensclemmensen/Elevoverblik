@@ -403,7 +403,7 @@ function klasseSelect(kl, act = 'vaelg-klasse') {
     `<option value="${k.id}" ${k.id === UI.klasseId ? 'selected' : ''}>${esc(klasseNavn(k))}</option>`).join('')}</select></label>`;
 }
 function kategoriChips(act, erValgt) {
-  return D.kategorier.map((k) => `<label class="chip"><input type="checkbox" data-act="${act}" value="${k.id}" ${erValgt(k) ? 'checked' : ''}>${esc(k.navn)}</label>`).join('');
+  return D.kategorier.map((k) => `<label class="chip" data-kat="${k.id}" title="Træk for at ændre rækkefølgen"><span class="greb" aria-hidden="true">⋮⋮</span><input type="checkbox" data-act="${act}" value="${k.id}" ${erValgt(k) ? 'checked' : ''}>${esc(k.navn)}</label>`).join('');
 }
 
 // ---------- Elevvisning: tidslinje med kort ----------
@@ -429,7 +429,7 @@ function htmlElev() {
     const vist = D.kategorier.filter((k) => !UI.skjulteKategorier.includes(k.id)).length;
     filter = `<details class="filter" data-filter ${UI.filterAaben ? 'open' : ''}>
       <summary>Karakterer på kortene: ${vist} af ${D.kategorier.length} kategorier vises</summary>
-      <div class="chips">${kategoriChips('elev-kategori', (k) => !UI.skjulteKategorier.includes(k.id))}</div>
+      <div class="chips" data-sorterbar>${kategoriChips('elev-kategori', (k) => !UI.skjulteKategorier.includes(k.id))}</div>
     </details>`;
   }
 
@@ -598,7 +598,7 @@ function htmlKlasse() {
       ${aarListe.map((a) => `<option value="${a === nu ? 'nu' : a}" ${a === valgtAar ? 'selected' : ''}>${skoleaarTekst(a)} (${klasseNavn(klasse, skoleaarStart(a))})${a === nu ? ' – nu' : ''}</option>`).join('')}
       <option value="alle" ${valgtAar === 'alle' ? 'selected' : ''}>Alle år</option>
     </select></label>
-    <div class="chips"><span class="chips-label">Vis:</span>${kategoriChips('klasse-kategori', (k) => UI.klasseKategorier.includes(k.id))}</div>
+    <div class="chips" data-sorterbar><span class="chips-label">Vis:</span>${kategoriChips('klasse-kategori', (k) => UI.klasseKategorier.includes(k.id))}</div>
   </div>`;
   if (!D.kategorier.length) return h + tomTilstand('Der er ingen karakterkategorier endnu.', 'Opret dem under <b>Opsætning</b> – f.eks. "Problemregning" og "Færdighedsregning".');
   if (!valgte.length) return h + tomTilstand('Vælg en eller flere kategorier ovenfor.');
@@ -1094,6 +1094,54 @@ document.addEventListener('change', (e) => {
 
 document.addEventListener('toggle', (e) => {
   if (e.target.matches?.('details[data-filter]')) { UI.filterAaben = e.target.open; gemUI(); }
+}, true);
+
+// ---------- Træk og slip: rækkefølgen af karakterkategorier ----------
+// Virker med mus, touchpad og touchskærm (pointer-hændelser). Rækkefølgen gemmes i datafilen
+// og gælder både elevfanen, karakterfanen og opsætningen.
+const Traek = { chip: null, id: null, x: 0, y: 0, aktiv: false, undertrykKlik: false };
+document.addEventListener('pointerdown', (e) => {
+  const chip = e.target.closest('.chips[data-sorterbar] .chip');
+  if (!chip || e.button !== 0) return;
+  Object.assign(Traek, { chip, id: e.pointerId, x: e.clientX, y: e.clientY, aktiv: false });
+});
+document.addEventListener('pointermove', (e) => {
+  const t = Traek;
+  if (!t.chip || e.pointerId !== t.id) return;
+  if (!t.aktiv) {
+    if (Math.hypot(e.clientX - t.x, e.clientY - t.y) < 6) return; // et almindeligt klik flytter ikke noget
+    t.aktiv = true;
+    t.chip.classList.add('traekkes');
+    document.body.classList.add('traekker');
+    try { t.chip.setPointerCapture(e.pointerId); } catch { /* ok */ }
+  }
+  e.preventDefault();
+  const under = document.elementFromPoint(e.clientX, e.clientY)?.closest('.chip');
+  if (!under || under === t.chip || under.parentElement !== t.chip.parentElement) return;
+  const r = under.getBoundingClientRect();
+  under.parentElement.insertBefore(t.chip, e.clientX < r.left + r.width / 2 ? under : under.nextSibling);
+});
+function slutTraek(e) {
+  const t = Traek;
+  if (!t.chip || e.pointerId !== t.id) return;
+  const chip = t.chip;
+  t.chip = null;
+  if (!t.aktiv) return;
+  chip.classList.remove('traekkes');
+  document.body.classList.remove('traekker');
+  t.undertrykKlik = true;
+  setTimeout(() => { t.undertrykKlik = false; }, 0);
+  const pos = new Map($$('.chip', chip.parentElement).map((c, i) => [c.dataset.kat, i]));
+  const foer = D.kategorier.map((k) => k.id).join();
+  D.kategorier.sort((a, b) => (pos.get(a.id) ?? 1e9) - (pos.get(b.id) ?? 1e9));
+  if (D.kategorier.map((k) => k.id).join() !== foer) aendret();
+  render();
+}
+document.addEventListener('pointerup', slutTraek);
+document.addEventListener('pointercancel', slutTraek);
+// Når en kategori er blevet trukket, må slip-klikket ikke også sætte/fjerne fluebenet
+document.addEventListener('click', (e) => {
+  if (Traek.undertrykKlik && e.target.closest('.chips[data-sorterbar]')) { e.preventDefault(); e.stopPropagation(); }
 }, true);
 
 // Tastaturnavigation i karakterskemaet: Enter / pil op / pil ned
