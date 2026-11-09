@@ -778,30 +778,44 @@ async function redigerSamtale(id, forslag = null) {
   const nu = skoleaar(idag());
   const aar = forslag?.aar ?? nu;
   const elevensI = (a) => D.samtaler.filter((x) => x.elevId === elev.id && skoleaar(x.dato) === a && x !== s);
+  // En ny samtale oprettes som standard for hele klassen (dog ikke elever, der allerede har den)
+  const klassen = eleverIKlasse(elev.klasseId);
+  const harSamtale = (e, n, a) => D.samtaler.some((x) => x.elevId === e.id && x.nummer === n && skoleaar(x.dato) === a);
   const nummer = s ? s.nummer : forslag?.nummer ?? ([1, 2].find((n) => !elevensI(aar).some((x) => x.nummer === n)) || 0);
   let dato = s?.dato || idag();
   if (!s && aar !== nu) { const { s1, s2 } = klassensSamtaleDatoer(elev.klasseId, aar); dato = nummer === 2 ? s2 : s1; }
-  const r = await aabnDialog(s ? 'Redigér skole-hjem-samtale' : `Ny skole-hjem-samtale – ${elev.navn}`, `
+  const r = await aabnDialog(s ? `Redigér skole-hjem-samtale – ${elev.navn}` : 'Ny skole-hjem-samtale', `
     <div class="raekke">${datoFelt('dato', dato)}
       <label>Hvilken samtale<select name="nummer">${[1, 2, 0].map((n) => `<option value="${n}" ${n === nummer ? 'selected' : ''}>${SAMTALE_NAVN[n]}${n ? '' : ' (uden karakterer)'}</option>`).join('')}</select></label></div>
     <label>Titel <input name="titel" value="${esc(s?.titel || '')}" placeholder="Udfyldes automatisk, f.eks. 'Efterår 2026'"></label>
+    ${s ? '' : `<label class="check"><input type="checkbox" name="helKlasse" ${nummer ? 'checked' : ''}>
+      Opret samtalen for alle ${klassen.length} elever i ${esc(klasseVed(elev, idag()))}</label>
+    <p class="hjaelp kun-klasse">Dato, samtale og titel bruges for hele klassen. Tekstfelterne herunder gemmes kun hos <b>${esc(elev.navn)}</b> –
+      de andre elevers kort starter tomme.</p>`}
     <label class="kun-fast">Punkter at tale om<textarea name="punkter" rows="4">${esc(s?.punkter || '')}</textarea></label>
     <label><span class="noter-label">Noter fra samtalen</span><textarea name="noter" rows="4">${esc(s?.noter || '')}</textarea></label>
     <label class="kun-fast">Aftaler<textarea name="aftaler" rows="3">${esc(s?.aftaler || '')}</textarea></label>`, {
     efterAabning: (f) => {
-      const sel = $('select[name=nummer]', f);
-      const opdater = () => {
+      const sel = $('select[name=nummer]', f), hel = $('input[name=helKlasse]', f);
+      let helRoert = false;
+      hel?.addEventListener('change', () => { helRoert = true; opdater(); });
+      sel.addEventListener('change', () => { if (hel && !helRoert) hel.checked = sel.value !== '0'; opdater(); });
+      function opdater() {
         const ekstra = sel.value === '0';
         $$('.kun-fast', f).forEach((el) => { el.hidden = ekstra; });
         $('.noter-label', f).textContent = ekstra ? 'Noter' : 'Noter fra samtalen';
-      };
-      sel.addEventListener('change', opdater); opdater();
+        const k = $('.kun-klasse', f); if (k) k.hidden = !hel.checked;
+      }
+      opdater();
     },
     slet: !!s, bred: true,
     valider: (v) => {
-      const n = Number(v.nummer);
-      return n && elevensI(skoleaar(v.dato)).some((x) => x.nummer === n)
-        ? `${elev.navn} har allerede en ${SAMTALE_NAVN[n].toLowerCase()} i skoleåret ${skoleaarTekst(skoleaar(v.dato))}.` : null;
+      const n = Number(v.nummer), a = skoleaar(v.dato), navn = n ? SAMTALE_NAVN[n].toLowerCase() : '';
+      if (!n) return null;
+      if (v.helKlasse) {
+        return klassen.every((e) => harSamtale(e, n, a)) ? `Alle elever i klassen har allerede en ${navn} i skoleåret ${skoleaarTekst(a)}.` : null;
+      }
+      return elevensI(a).some((x) => x.nummer === n) ? `${elev.navn} har allerede en ${navn} i skoleåret ${skoleaarTekst(a)}.` : null;
     },
   });
   if (!r) return;
@@ -815,7 +829,24 @@ async function redigerSamtale(id, forslag = null) {
       felter.noter = [felter.punkter, felter.noter, felter.aftaler].filter(Boolean).join('\n\n');
       felter.punkter = ''; felter.aftaler = '';
     }
-    if (s) Object.assign(s, felter); else D.samtaler.push({ id: uid(), elevId: elev.id, ...felter });
+    if (s) Object.assign(s, felter);
+    else if (!r.v.helKlasse) D.samtaler.push({ id: uid(), elevId: elev.id, ...felter });
+    else {
+      const a = skoleaar(felter.dato);
+      const tom = { punkter: '', noter: '', aftaler: '' };
+      let oprettet = 0;
+      const sprunget = [];
+      for (const e of klassen) {
+        if (felter.nummer && harSamtale(e, felter.nummer, a)) { sprunget.push(e.navn); continue; }
+        D.samtaler.push({ id: uid(), elevId: e.id, ...felter, ...(e.id === elev.id ? {} : tom) });
+        oprettet++;
+      }
+      const tekstTabt = sprunget.includes(elev.navn) && (felter.punkter || felter.noter || felter.aftaler);
+      let besked = `Samtalen er oprettet for ${flertal(oprettet, 'elev', 'elever')}`;
+      if (sprunget.length) besked += `. ${flertal(sprunget.length, 'elev', 'elever')} havde den i forvejen og blev sprunget over`;
+      if (tekstTabt) besked += ` – også ${elev.navn}, så teksten blev ikke gemt`;
+      toast(besked, !!tekstTabt);
+    }
   }
   aendret(); render();
 }

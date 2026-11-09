@@ -252,6 +252,8 @@ dialog::backdrop { background: rgba(20, 25, 35, .45); }
 .dlg-indhold { display: flex; flex-direction: column; gap: 12px; }
 .dlg-form label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; font-weight: 500; }
 .dlg-form .hjaelp { margin: 0; }
+.dlg-form label.check { flex-direction: row; align-items: center; gap: 8px; font-weight: 500; }
+.dlg-form label.check input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
 .raekke { display: flex; gap: 12px; flex-wrap: wrap; }
 .raekke > label { flex: 1 1 180px; }
 .dlg-fejl { margin: 0; color: var(--fare); font-weight: 500; }
