@@ -136,7 +136,8 @@ details.filter .chips { margin-top: 8px; }
 .kort .type { font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: var(--accent); }
 .kort.aftale .type { color: var(--aftale); }
 .kort.siden .type { color: var(--daempet); }
-.kort h3 { margin: 2px 0 1px; font-size: 17px; line-height: 1.25; }
+.kort h3 { margin: 0 0 2px; font-size: 17px; line-height: 1.25; }
+.kort header .meta { margin-top: 2px; }
 .kort .meta { color: var(--daempet); font-size: 13px; }
 .kort .rediger { position: absolute; top: 0; right: 0; padding: 3px 10px; font-size: 13px; }
 .kort h4 { margin: 14px 0 3px; font-size: 13px; color: var(--daempet); font-weight: 600; }

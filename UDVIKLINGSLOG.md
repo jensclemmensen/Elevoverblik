@@ -5,6 +5,13 @@ Versionsnummeret står også øverst i programmet ved siden af "Elevoverblik".
 
 ---
 
+## v8 – 9. november 2026
+**Ny overskrift på kortene i elevfanen**
+- Kortenes top viser nu klasse og samtale med stor skrift, f.eks. **8.c 1. skole-hjem**, og datoen med lille skrift under, f.eks. *2. Nov. 2026*.
+- Den automatiske titel ("Efterår 2026") og linjen med dato og klasse er fjernet. Oplysningerne står nu i de to linjer.
+- Gælder alle kort: samtaler, ekstra samtaler ("8.c Ekstra samtale"), aftaler ("8.c Aftale") og kort for samtaler, der ikke er oprettet endnu.
+- Titelfeltet er nu valgfrit. Skriver man en titel, vises den som en lille linje under datoen.
+
 ## v7 – 9. november 2026
 **Tomme tekstfelter skjules på kortene**
 - "Punkter at tale om", "Noter fra samtalen" og "Aftaler" vises kun på et samtalekort, hvis der står noget i dem. Så bruger kortene ikke plads på tomme overskrifter.

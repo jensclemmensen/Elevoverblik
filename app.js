@@ -30,6 +30,8 @@ const pad = (n) => String(n).padStart(2, '0');
 const isoDato = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const idag = () => isoDato(new Date());
 const visDato = (s) => { if (!s) return ''; const [y, m, d] = s.split('-'); return `${d}.${m}.${y}`; };
+const KORT_MAANED = ['Jan.', 'Feb.', 'Mar.', 'Apr.', 'Maj', 'Jun.', 'Jul.', 'Aug.', 'Sep.', 'Okt.', 'Nov.', 'Dec.'];
+const kortDato = (s) => { if (!s) return ''; const [y, m, d] = s.split('-').map(Number); return `${d}. ${KORT_MAANED[m - 1]} ${y}`; };
 const sorterNavn = (a, b) => a.navn.localeCompare(b.navn, 'da');
 const MAANEDER = ['januar', 'februar', 'marts', 'april', 'maj', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'december'];
 const flertal = (n, en, flere) => `${n} ${n === 1 ? en : flere}`;
@@ -136,6 +138,7 @@ function gennemsnit(kat, vaerdier) {
 const PERIODER = { 1: '1. samtale', 2: '2. samtale', 3: 'Efter sidste samtale' };
 const PERIODER_LANG = { 1: 'Til 1. skole-hjem-samtale', 2: 'Til 2. skole-hjem-samtale', 3: 'Efter sidste skole-hjem-samtale (vises på 2. samtale)' };
 const SAMTALE_NAVN = { 1: '1. skole-hjem-samtale', 2: '2. skole-hjem-samtale', 0: 'Ekstra samtale' };
+const KORT_NAVN = { 1: '1. skole-hjem', 2: '2. skole-hjem', 0: 'Ekstra samtale' }; // overskrift på kortene
 
 /** Sortering af opgaver: skoleår, periode, dato, navn. */
 function sorterOpg(a, b) {
@@ -482,11 +485,6 @@ function tekstFelt(overskrift, tekst) {
   // Tomme felter vises ikke på kortet (men står stadig i redigér-dialogen)
   return tekst ? `<section><h4>${overskrift}</h4><p class="tekst">${esc(tekst)}</p></section>` : '';
 }
-function samtaleTitel(s) {
-  if (s.titel) return s.titel;
-  const [y, m] = s.dato.split('-').map(Number);
-  return `${m >= 8 ? 'Efterår' : 'Forår'} ${y}`;
-}
 function klasseVed(elev, dato) {
   const k = find('klasser', elev.klasseId);
   return k ? klasseNavn(k, dato) : '';
@@ -497,9 +495,9 @@ function htmlSamtaleKort(s, elev, opgaver, elevK, kats) {
   const k = htmlKarakterRaekker(opgaver, elevK, s.nummer, kats);
   return `<article class="kort samtale">
     <header>
-      <span class="type">${SAMTALE_NAVN[s.nummer]}</span>
-      <h3>${esc(samtaleTitel(s))}</h3>
-      <div class="meta">${visDato(s.dato)} · ${esc(klasseVed(elev, s.dato))}</div>
+      <h3>${esc(klasseVed(elev, s.dato))} ${KORT_NAVN[s.nummer]}</h3>
+      <span class="type">${kortDato(s.dato)}</span>
+      ${s.titel ? `<div class="meta">${esc(s.titel)}</div>` : ''}
       <button class="rediger" data-act="rediger-samtale" data-id="${s.id}">Redigér</button>
     </header>
     <div class="tekst-del">
@@ -516,9 +514,8 @@ function htmlPladsholderKort(n, aar, elev, opgaver, elevK, kats) {
   const k = htmlKarakterRaekker(opgaver, elevK, n, kats);
   return `<article class="kort siden">
     <header>
-      <span class="type">${SAMTALE_NAVN[n]}</span>
-      <h3>Ikke oprettet endnu</h3>
-      <div class="meta">Skoleåret ${skoleaarTekst(aar)} · ${esc(klasseVed(elev, skoleaarStart(aar)))}</div>
+      <h3>${esc(klasseVed(elev, skoleaarStart(aar)))} ${KORT_NAVN[n]}</h3>
+      <span class="type">Ikke oprettet endnu · ${skoleaarTekst(aar)}</span>
     </header>
     <div class="tekst-del">${k.overskrift}</div>
     ${k.celler}
@@ -528,9 +525,9 @@ function htmlPladsholderKort(n, aar, elev, opgaver, elevK, kats) {
 function htmlEkstraKort(s, elev) {
   return `<article class="kort ekstra">
     <header>
-      <span class="type">${SAMTALE_NAVN[0]}</span>
-      <h3>${esc(samtaleTitel(s))}</h3>
-      <div class="meta">${visDato(s.dato)} · ${esc(klasseVed(elev, s.dato))}</div>
+      <h3>${esc(klasseVed(elev, s.dato))} ${KORT_NAVN[0]}</h3>
+      <span class="type">${kortDato(s.dato)}</span>
+      ${s.titel ? `<div class="meta">${esc(s.titel)}</div>` : ''}
       <button class="rediger" data-act="rediger-samtale" data-id="${s.id}">Redigér</button>
     </header>
     ${s.noter ? `<p class="tekst">${esc(s.noter)}</p>` : ''}
@@ -539,9 +536,9 @@ function htmlEkstraKort(s, elev) {
 function htmlAftaleKort(a, elev) {
   return `<article class="kort aftale">
     <header>
-      <span class="type">Aftale</span>
-      ${a.titel ? `<h3>${esc(a.titel)}</h3>` : ''}
-      <div class="meta">${visDato(a.dato)} · ${esc(klasseVed(elev, a.dato))}</div>
+      <h3>${esc(klasseVed(elev, a.dato))} Aftale</h3>
+      <span class="type">${kortDato(a.dato)}</span>
+      ${a.titel ? `<div class="meta">${esc(a.titel)}</div>` : ''}
       <button class="rediger" data-act="rediger-aftale" data-id="${a.id}">Redigér</button>
     </header>
     ${a.tekst ? `<p class="tekst">${esc(a.tekst)}</p>` : ''}
@@ -788,7 +785,7 @@ async function redigerSamtale(id, forslag = null) {
   const r = await aabnDialog(s ? `Redigér skole-hjem-samtale – ${elev.navn}` : 'Ny skole-hjem-samtale', `
     <div class="raekke">${datoFelt('dato', dato)}
       <label>Hvilken samtale<select name="nummer">${[1, 2, 0].map((n) => `<option value="${n}" ${n === nummer ? 'selected' : ''}>${SAMTALE_NAVN[n]}${n ? '' : ' (uden karakterer)'}</option>`).join('')}</select></label></div>
-    <label>Titel <input name="titel" value="${esc(s?.titel || '')}" placeholder="Udfyldes automatisk, f.eks. 'Efterår 2026'"></label>
+    <label>Titel <input name="titel" value="${esc(s?.titel || '')}" placeholder="Valgfri – vises under datoen på kortet"></label>
     ${s ? '' : `<label class="check"><input type="checkbox" name="helKlasse" ${nummer ? 'checked' : ''}>
       Opret samtalen for alle ${klassen.length} elever i ${esc(klasseVed(elev, idag()))}</label>
     <p class="hjaelp kun-klasse">Dato, samtale og titel bruges for hele klassen. Tekstfelterne herunder gemmes kun hos <b>${esc(elev.navn)}</b> –
