@@ -5,6 +5,14 @@ Versionsnummeret står også øverst i programmet ved siden af "Elevoverblik".
 
 ---
 
+## v10 – 9. november 2026
+**Den enkelte opgave kan bruge en anden skala end kategorien**
+- Kategoriens skala er nu en standard for nye opgaver. Klikker man på en opgaves navn på karakterfanen, kan man vælge en anden skala til netop den opgave, inklusive egne vurderinger med egne valgmuligheder.
+- Det står ikke ved opgaven i skemaet, så det ikke fylder. Skalaen kan ses i redigér-vinduet og når man holder musen over opgavens navn.
+- Skifter en opgave skala, omregnes de eksisterende karakterer, hvor det kan lade sig gøre (f.eks. 7 → 7 point). Karakterer, der ikke passer til den nye skala, markeres med rødt i skemaet og tæller ikke med i gennemsnittet.
+- Kategoriens standardskala kan nu ændres, selv om kategorien er brugt. Eksisterende opgaver beholder deres skala.
+- Dataformatet er hævet til version 3. Ældre datafiler åbnes uden ændringer.
+
 ## v9 – 9. november 2026
 **Skalaen vises med lille grå skrift på elevkortene**
 - I karakterskemaerne på elevfanen står skalaen (f.eks. "7-trinsskala" eller "Point") nu med mindre grå skrift efter kategoriens navn, ligesom på karakterfanen.

@@ -26,6 +26,7 @@ Se kommentaren øverst i `app.js`. Kort fortalt:
 - `klasser` har `trin` i skoleåret `aar`. Klassetrinnet stiger automatisk ved hvert nyt skoleår (`indstillinger.startMaaned`, standard august).
 - `opgaver` har `periode`: 1 = til 1. samtale, 2 = til 2. samtale, 3 = efter sidste samtale.
 - `samtaler` har `nummer`: 1, 2 eller 0 (ekstra samtale uden karakterer).
+- `opgaver` kan have deres egen `skala` (og `vaerdier` til egne vurderinger). Ellers bruges kategoriens. Brug altid `skalaFor(kat, opg)`.
 - `karakterer` kobler elev og opgave og har `vaerdi` og `kommentar`.
 - Rækkefølgen i `kategorier` er den rækkefølge, kategorierne vises i.
 

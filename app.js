@@ -11,7 +11,8 @@
     klasser:    { id, trin, bogstav, aar }   'trin' er klassetrinnet i skoleåret, der starter i 'aar'
     elever:     { id, navn, klasseId }
     kategorier: { id, navn, skala, vaerdier[] }   skala: syvtrin | point | procent | liste | tekst
-    opgaver:    { id, klasseId, kategoriId, navn, dato, maks, periode }
+    opgaver:    { id, klasseId, kategoriId, navn, dato, maks, periode, skala, vaerdier }
+                skala/vaerdier: valgfri egen skala for opgaven – ellers bruges kategoriens
                 periode: 1 = til 1. skole-hjem-samtale, 2 = til 2. samtale, 3 = efter sidste samtale
     karakterer: { id, elevId, opgaveId, vaerdi, kommentar }
     samtaler:   { id, elevId, dato, nummer, titel, punkter, noter, aftaler }
@@ -19,7 +20,7 @@
     aftaler:    { id, elevId, dato, titel, tekst }
 */
 
-const VERSION = 2;
+const VERSION = 3;
 
 // ---------- Hjælpefunktioner ----------
 const $ = (s, r = document) => r.querySelector(s);
@@ -76,15 +77,22 @@ const SKALAER = {
 };
 const SYVTRIN = ['-3', '00', '02', '4', '7', '10', '12'];
 
+/** Den skala, en opgave bruger: opgavens egen, hvis den har en, ellers kategoriens. */
+function skalaFor(kat, opg) {
+  return opg?.skala ? { skala: opg.skala, vaerdier: opg.vaerdier || [] } : { skala: kat.skala, vaerdier: kat.vaerdier || [] };
+}
+/** Er værdien et gyldigt tal på en talskala? (ugyldige værdier kan opstå, når en opgave skifter skala) */
+const erGyldigTal = (sk, v) => (sk.skala === 'syvtrin' ? SYVTRIN.includes(String(v)) : typeof v === 'number');
+
 function laesTal(s) {
   const t = s.replace(/\s/g, '').replace('%', '').replace(',', '.');
   return /^-?\d+(\.\d+)?$/.test(t) ? Number(t) : NaN;
 }
 /** Fortolker det, brugeren har skrevet. Returnerer { vaerdi } eller { fejl }. */
-function fortolk(kat, opg, raa) {
+function fortolk(sk, opg, raa) {
   const s = String(raa ?? '').trim();
   if (s === '') return { vaerdi: '' };
-  switch (kat.skala) {
+  switch (sk.skala) {
     case 'syvtrin': {
       const alias = { '0': '00', '2': '02', '-03': '-3', '04': '4', '07': '7' };
       const v = alias[s] ?? s;
@@ -102,8 +110,8 @@ function fortolk(kat, opg, raa) {
       return { vaerdi: n };
     }
     case 'liste': {
-      const v = (kat.vaerdier || []).find((x) => x.toLowerCase() === s.toLowerCase());
-      return v ? { vaerdi: v } : { fejl: `Vælg en af: ${(kat.vaerdier || []).join(', ')}` };
+      const v = (sk.vaerdier || []).find((x) => x.toLowerCase() === s.toLowerCase());
+      return v ? { vaerdi: v } : { fejl: `Vælg en af: ${(sk.vaerdier || []).join(', ')}` };
     }
     default: return { vaerdi: s };
   }
@@ -111,23 +119,26 @@ function fortolk(kat, opg, raa) {
 const tomV = (v) => v === '' || v == null;
 const talTekst = (n, dec = 1) => n.toLocaleString('da-DK', { maximumFractionDigits: dec });
 /** Værdi som den vises på kort og i oversigter. */
-function visVaerdi(kat, v, opg) {
+function visVaerdi(sk, v, opg) {
   if (tomV(v)) return '';
-  if (kat.skala === 'point') return talTekst(v, 2) + (opg?.maks ? `/${opg.maks}` : '');
-  if (kat.skala === 'procent') return talTekst(v, 1) + ' %';
+  if ((sk.skala === 'point' || sk.skala === 'procent') && typeof v !== 'number') return String(v);
+  if (sk.skala === 'point') return talTekst(v, 2) + (opg?.maks ? `/${opg.maks}` : '');
+  if (sk.skala === 'procent') return talTekst(v, 1) + ' %';
   return String(v);
 }
 /** Værdi som den står i et indtastningsfelt. */
-function feltVaerdi(kat, v) {
+function feltVaerdi(sk, v) {
   if (tomV(v)) return '';
-  return kat.skala === 'point' || kat.skala === 'procent' ? talTekst(v, 2) : String(v);
+  return (sk.skala === 'point' || sk.skala === 'procent') && typeof v === 'number' ? talTekst(v, 2) : String(v);
 }
-function gennemsnit(kat, vaerdier) {
+function gennemsnit(sk, vaerdier) {
   const udfyldt = vaerdier.filter((v) => !tomV(v));
   if (!udfyldt.length) return { tekst: '–', titel: 'Ingen karakterer endnu' };
-  if (SKALAER[kat.skala].tal) {
-    const g = udfyldt.reduce((s, v) => s + Number(v), 0) / udfyldt.length;
-    return { tekst: talTekst(g) + (kat.skala === 'procent' ? ' %' : ''), titel: `Gennemsnit af ${udfyldt.length} elever` };
+  if (SKALAER[sk.skala].tal) {
+    const tal = udfyldt.filter((v) => erGyldigTal(sk, v));
+    if (!tal.length) return { tekst: '–', titel: 'Ingen gyldige karakterer' };
+    const g = tal.reduce((s, v) => s + Number(v), 0) / tal.length;
+    return { tekst: talTekst(g) + (sk.skala === 'procent' ? ' %' : ''), titel: `Gennemsnit af ${tal.length} elever` };
   }
   const antal = {};
   udfyldt.forEach((v) => { antal[v] = (antal[v] || 0) + 1; });
@@ -556,7 +567,6 @@ function htmlKarakterRaekker(opgaver, elevK, nummer, kats) {
     const streg = nummer === 2 ? kol.findIndex((o) => o.periode === 3) : -1;
     if (streg >= 0) harEfter = true;
     const c = (i) => (i === streg ? 'efter' : '');
-    const erTal = SKALAER[kat.skala].tal;
     return `<div class="kat-celle"><div class="kskema-ramme"><table class="kskema">
       <thead>
         <tr><th class="kat" colspan="${kol.length}">${esc(kat.navn)} <span class="skala">${SKALAER[kat.skala].navn}</span></th></tr>
@@ -564,7 +574,8 @@ function htmlKarakterRaekker(opgaver, elevK, nummer, kats) {
       </thead>
       <tbody><tr>${kol.map((o, i) => {
         const k = elevK.get(o.id);
-        const v = k ? visVaerdi(kat, k.vaerdi, o) : '';
+        const sk = skalaFor(kat, o), erTal = SKALAER[sk.skala].tal;
+        const v = k ? visVaerdi(sk, k.vaerdi, o) : '';
         const kom = k?.kommentar || '';
         const titel = [erTal ? '' : v, kom].filter(Boolean).join('\n');
         return `<td class="${c(i)}${kom ? ' har-kom' : ''}${erTal ? '' : ' tekst-v'}" title="${esc(titel)}">${v ? esc(v) : '<span class="tom-v">–</span>'}</td>`;
@@ -619,7 +630,7 @@ function htmlKlasse() {
   const r1 = grupper.map((g) => `<th class="kat" colspan="${g.opg.length + 1}">${esc(g.kat.navn)} <span class="skala">${SKALAER[g.kat.skala].navn}</span></th>`).join('');
   const r2 = grupper.map((g) => g.perioder.map((p, i) => `<th class="per${i ? ' skift' : ''}" colspan="${p.opg.length}">${PERIODER[p.periode]}${valgtAar === 'alle' ? ` <span class="per-aar">${skoleaarTekst(p.aar)}</span>` : ''}</th>`).join('')
     + `<th class="ny" rowspan="2"><button class="ny-knap" data-act="ny-opgave" data-kat="${g.kat.id}" title="Ny opgave i ${esc(g.kat.navn)}">+ Ny</button></th>`).join('');
-  const r3 = grupper.map((g) => g.opg.map((o) => `<th class="opg${sk(g, o)}"><button class="opg-knap" data-act="rediger-opgave" data-id="${o.id}" title="Redigér ${esc(o.navn || 'opgave')}">
+  const r3 = grupper.map((g) => g.opg.map((o) => `<th class="opg${sk(g, o)}"><button class="opg-knap" data-act="rediger-opgave" data-id="${o.id}" title="Redigér ${esc(o.navn || 'opgave')}${o.skala ? esc(' – ' + SKALAER[o.skala].navn) : ''}">
       <span class="opg-navn">${esc(o.navn || '(uden navn)')}</span>
       <span class="opg-dato">${visDato(o.dato)}${o.maks ? ` · maks ${o.maks}` : ''}</span></button></th>`).join('')).join('');
 
@@ -627,12 +638,14 @@ function htmlKlasse() {
     g.opg.map((o) => htmlCelle(e, o, g.kat, idx.get(e.id + '|' + o.id), sk(g, o))).join('') + '<td class="ny"></td>').join('')}</tr>`).join('');
 
   const fod = grupper.map((g) => g.opg.map((o) => {
-    const gn = gennemsnit(g.kat, elever.map((e) => idx.get(e.id + '|' + o.id)?.vaerdi));
+    const gn = gennemsnit(skalaFor(g.kat, o), elever.map((e) => idx.get(e.id + '|' + o.id)?.vaerdi));
     return `<td class="gns${sk(g, o)}" data-gns="${o.id}" title="${esc(gn.titel)}">${esc(gn.tekst)}</td>`;
   }).join('') + '<td class="ny"></td>').join('');
 
-  const lister = valgte.filter((k) => k.skala === 'liste')
-    .map((k) => `<datalist id="dl-${k.id}">${(k.vaerdier || []).map((v) => `<option value="${esc(v)}">`).join('')}</datalist>`).join('');
+  // Forslagslister til opgaver med "egne vurderinger"
+  const lister = grupper.flatMap((g) => g.opg.map((o) => ({ o, sk: skalaFor(g.kat, o) })))
+    .filter((x) => x.sk.skala === 'liste')
+    .map((x) => `<datalist id="dl-${x.o.id}">${x.sk.vaerdier.map((v) => `<option value="${esc(v)}">`).join('')}</datalist>`).join('');
 
   return h + `<div class="grid-wrap"><table class="grid">
     <thead><tr><th class="navn hjoerne" rowspan="3">Elev <span class="antal">(${elever.length})</span></th>${r1}</tr><tr>${r2}</tr><tr>${r3}</tr></thead>
@@ -645,18 +658,22 @@ function htmlKlasse() {
 }
 function htmlCelle(elev, opg, kat, k, ekstraKlasse = '') {
   const kom = k?.kommentar || '';
-  return `<td class="celle${kat.skala === 'tekst' || kat.skala === 'liste' ? ' bred' : ''}${ekstraKlasse}"><div class="celle-indre">
-    <input class="celle-input" data-elev="${elev.id}" data-opg="${opg.id}" value="${esc(k ? feltVaerdi(kat, k.vaerdi) : '')}"
-      ${kat.skala === 'liste' ? `list="dl-${kat.id}"` : ''} autocomplete="off" spellcheck="false"
-      aria-label="${esc(elev.navn)}, ${esc(opg.navn || kat.navn)}" title="${esc(kom)}">
+  const sk = skalaFor(kat, opg);
+  const felt = k ? feltVaerdi(sk, k.vaerdi) : '';
+  // En værdi kan være ugyldig, hvis opgaven har skiftet skala – den markeres med rødt
+  const fejl = felt ? fortolk(sk, opg, felt).fejl : null;
+  return `<td class="celle${sk.skala === 'tekst' || sk.skala === 'liste' ? ' bred' : ''}${ekstraKlasse}"><div class="celle-indre">
+    <input class="celle-input${fejl ? ' fejl' : ''}" data-elev="${elev.id}" data-opg="${opg.id}" value="${esc(felt)}"
+      ${sk.skala === 'liste' ? `list="dl-${opg.id}"` : ''} autocomplete="off" spellcheck="false"
+      aria-label="${esc(elev.navn)}, ${esc(opg.navn || kat.navn)}" title="${esc(fejl || kom)}">
     <button class="kom-knap${kom ? ' har' : ''}" data-act="kommentar" data-elev="${elev.id}" data-opg="${opg.id}" tabindex="-1"
       title="${kom ? esc('Kommentar: ' + kom) : 'Tilføj kommentar'}">✎</button>
   </div></td>`;
 }
 function celleAendret(inp) {
   const opg = find('opgaver', inp.dataset.opg);
-  const kat = find('kategorier', opg.kategoriId);
-  const r = fortolk(kat, opg, inp.value);
+  const sk = skalaFor(find('kategorier', opg.kategoriId), opg);
+  const r = fortolk(sk, opg, inp.value);
   if (r.fejl) {
     inp.classList.add('fejl'); inp.title = r.fejl;
     toast(r.fejl, true);
@@ -664,16 +681,16 @@ function celleAendret(inp) {
   }
   inp.classList.remove('fejl');
   saetKarakter(inp.dataset.elev, opg.id, { vaerdi: r.vaerdi });
-  inp.value = feltVaerdi(kat, r.vaerdi);
+  inp.value = feltVaerdi(sk, r.vaerdi);
   inp.title = D.karakterer.find((x) => x.elevId === inp.dataset.elev && x.opgaveId === opg.id)?.kommentar || '';
-  opdaterGennemsnit(opg, kat);
+  opdaterGennemsnit(opg, sk);
 }
-function opdaterGennemsnit(opg, kat) {
+function opdaterGennemsnit(opg, sk) {
   const celle = $(`[data-gns="${opg.id}"]`);
   if (!celle) return;
   const elever = eleverIKlasse(opg.klasseId).map((e) => e.id);
   const v = D.karakterer.filter((k) => k.opgaveId === opg.id && elever.includes(k.elevId)).map((k) => k.vaerdi);
-  const gn = gennemsnit(kat, v);
+  const gn = gennemsnit(sk, v);
   celle.textContent = gn.tekst; celle.title = gn.titel;
 }
 
@@ -875,12 +892,25 @@ async function redigerOpgave(id, kategoriId) {
   const r = await aabnDialog(o ? `Redigér opgave i ${kat.navn}` : `Ny opgave i ${kat.navn} – ${klasseNavn(klasse)}`, `
     <label>Navn på opgave / prøve<input name="navn" value="${esc(o?.navn || '')}" placeholder="F.eks. 'Terminsprøve' eller 'Kapitel 3'"></label>
     <div class="raekke">${datoFelt('dato', o?.dato)}
-      ${kat.skala === 'point' ? `<label>Maks. point (valgfrit)<input name="maks" type="number" min="1" step="any" value="${esc(o?.maks || '')}"></label>` : ''}</div>
+      <label>Skala<select name="skala">
+        <option value="">Som kategorien (${SKALAER[kat.skala].navn})</option>
+        ${Object.entries(SKALAER).map(([v, sk]) => `<option value="${v}" ${o?.skala === v ? 'selected' : ''}>${sk.navn}</option>`).join('')}
+      </select></label></div>
+    <label class="kun-point">Maks. point (valgfrit)<input name="maks" type="number" min="1" step="any" value="${esc(o?.maks || '')}"></label>
+    <label class="kun-liste">Mulige vurderinger – én pr. linje<textarea name="vaerdier" rows="4" placeholder="Under forventet&#10;Som forventet&#10;Over forventet">${esc((o?.vaerdier?.length ? o.vaerdier : kat.vaerdier || []).join('\n'))}</textarea></label>
     <label>Hører til<select name="periode">${[1, 2, 3].map((p) => `<option value="${p}" ${p === (o ? o.periode : gaetPeriode(klasse.id, idag())) ? 'selected' : ''}>${PERIODER_LANG[p]}</option>`).join('')}</select></label>
     ${o ? `<p class="hjaelp">${flertal(antal, 'elev har', 'elever har')} fået karakter i denne opgave.</p>` : ''}`,
   {
     slet: !!o, gemTekst: o ? 'Gem' : 'Opret',
+    valider: (v) => (v.skala === 'liste' && !v.vaerdier.trim() ? 'Skriv mindst én mulig vurdering.' : null),
     efterAabning: (f) => {
+      // Vis kun felterne, der passer til den valgte skala
+      const skSel = $('select[name=skala]', f);
+      const visFelter = () => {
+        $('.kun-point', f).hidden = (skSel.value || kat.skala) !== 'point';
+        $('.kun-liste', f).hidden = skSel.value !== 'liste';
+      };
+      skSel.addEventListener('change', visFelter); visFelter();
       // Foreslå automatisk en periode ud fra datoen, indtil brugeren selv vælger
       let roert = !!o;
       const sel = $('select[name=periode]', f), dato = $('input[name=dato]', f);
@@ -894,9 +924,28 @@ async function redigerOpgave(id, kategoriId) {
     D.opgaver = D.opgaver.filter((x) => x !== o);
     D.karakterer = D.karakterer.filter((k) => k.opgaveId !== o.id);
   } else {
-    const felter = { navn: r.v.navn.trim(), dato: r.v.dato, maks: r.v.maks ? Number(r.v.maks) : null, periode: Number(r.v.periode) };
-    if (o) Object.assign(o, felter);
-    else { const ny = { id: uid(), klasseId: klasse.id, kategoriId: kat.id, ...felter }; D.opgaver.push(ny); id = ny.id; }
+    // Egen skala gemmes kun, hvis den er forskellig fra kategoriens
+    let skala = r.v.skala || null;
+    let vaerdier = skala === 'liste' ? r.v.vaerdier.split('\n').map((x) => x.trim()).filter(Boolean) : [];
+    if (skala === kat.skala && (skala !== 'liste' || vaerdier.join('\n') === (kat.vaerdier || []).join('\n'))) { skala = null; vaerdier = []; }
+    const felter = {
+      navn: r.v.navn.trim(), dato: r.v.dato, periode: Number(r.v.periode), skala, vaerdier,
+      maks: (skala || kat.skala) === 'point' && r.v.maks ? Number(r.v.maks) : null,
+    };
+    if (o) {
+      const gammel = skalaFor(kat, o);
+      Object.assign(o, felter);
+      const ny = skalaFor(kat, o);
+      if (gammel.skala !== ny.skala || gammel.vaerdier.join('\n') !== ny.vaerdier.join('\n')) {
+        // Omregn eksisterende karakterer til den nye skala, hvor det kan lade sig gøre (f.eks. 7 → 7 point)
+        let ugyldige = 0;
+        for (const k of D.karakterer.filter((x) => x.opgaveId === o.id && !tomV(x.vaerdi))) {
+          const res = fortolk(ny, o, feltVaerdi(gammel, k.vaerdi));
+          if (res.fejl) ugyldige++; else k.vaerdi = res.vaerdi;
+        }
+        if (ugyldige) toast(`${flertal(ugyldige, 'karakter passer', 'karakterer passer')} ikke til den nye skala og er markeret med rødt. Ret dem i skemaet.`, true);
+      }
+    } else { const ny = { id: uid(), klasseId: klasse.id, kategoriId: kat.id, ...felter }; D.opgaver.push(ny); id = ny.id; }
   }
   aendret(); render();
   if (r.handling === 'gem') $(`.celle-input[data-opg="${id}"]`)?.focus();
@@ -904,18 +953,19 @@ async function redigerOpgave(id, kategoriId) {
 
 async function redigerKommentar(elevId, opgaveId) {
   const elev = find('elever', elevId), opg = find('opgaver', opgaveId), kat = find('kategorier', opg.kategoriId);
+  const sk = skalaFor(kat, opg);
   const inp = $(`.celle-input[data-elev="${elevId}"][data-opg="${opgaveId}"]`);
   const k = D.karakterer.find((x) => x.elevId === elevId && x.opgaveId === opgaveId);
-  const nuv = inp && !inp.classList.contains('fejl') ? inp.value : feltVaerdi(kat, k?.vaerdi);
+  const nuv = inp && !inp.classList.contains('fejl') ? inp.value : feltVaerdi(sk, k?.vaerdi);
   const r = await aabnDialog(`${elev.navn} – ${opg.navn || kat.navn}`, `
-    <p class="hjaelp">${esc(kat.navn)} · ${visDato(opg.dato)} · ${SKALAER[kat.skala].navn}</p>
-    <label>Karakter / vurdering<input name="vaerdi" value="${esc(nuv)}" ${kat.skala === 'liste' ? `list="dl-k"` : ''} autocomplete="off"></label>
-    ${kat.skala === 'liste' ? `<datalist id="dl-k">${(kat.vaerdier || []).map((v) => `<option value="${esc(v)}">`).join('')}</datalist>` : ''}
+    <p class="hjaelp">${esc(kat.navn)} · ${visDato(opg.dato)} · ${SKALAER[sk.skala].navn}</p>
+    <label>Karakter / vurdering<input name="vaerdi" value="${esc(nuv)}" ${sk.skala === 'liste' ? `list="dl-k"` : ''} autocomplete="off"></label>
+    ${sk.skala === 'liste' ? `<datalist id="dl-k">${sk.vaerdier.map((v) => `<option value="${esc(v)}">`).join('')}</datalist>` : ''}
     <label>Kommentar<textarea name="kommentar" rows="4">${esc(k?.kommentar || '')}</textarea></label>`,
-  { valider: (v) => fortolk(kat, opg, v.vaerdi).fejl,
+  { valider: (v) => fortolk(sk, opg, v.vaerdi).fejl,
     efterAabning: (f) => setTimeout(() => $('textarea', f).focus(), 0) });
   if (!r) return;
-  saetKarakter(elevId, opgaveId, { vaerdi: fortolk(kat, opg, r.v.vaerdi).vaerdi, kommentar: r.v.kommentar.trim() });
+  saetKarakter(elevId, opgaveId, { vaerdi: fortolk(sk, opg, r.v.vaerdi).vaerdi, kommentar: r.v.kommentar.trim() });
   render();
 }
 
@@ -986,9 +1036,9 @@ async function redigerKategori(id) {
   const brugt = k ? D.opgaver.some((o) => o.kategoriId === k.id) : false;
   const r = await aabnDialog(k ? `Redigér ${k.navn}` : 'Ny karakterkategori', `
     <label>Navn<input name="navn" required value="${esc(k?.navn || '')}" placeholder="F.eks. 'Problemregning'"></label>
-    <label>Skala<select name="skala" ${brugt ? 'disabled' : ''}>${Object.entries(SKALAER).map(([v, s]) =>
+    <label>Standardskala for nye opgaver<select name="skala">${Object.entries(SKALAER).map(([v, s]) =>
       `<option value="${v}" ${(k?.skala || 'syvtrin') === v ? 'selected' : ''}>${s.navn}</option>`).join('')}</select></label>
-    ${brugt ? '<p class="hjaelp">Skalaen kan ikke ændres, fordi kategorien allerede er brugt.</p>' : ''}
+    <p class="hjaelp">Den enkelte opgave kan få en anden skala: klik på opgavens navn på karakterfanen.${brugt ? ' Ændrer du standardskalaen her, beholder de eksisterende opgaver deres skala.' : ''}</p>
     <label class="kun-liste">Mulige vurderinger – én pr. linje<textarea name="vaerdier" rows="5" placeholder="Under forventet&#10;Som forventet&#10;Over forventet">${esc((k?.vaerdier || []).join('\n'))}</textarea></label>
     <p class="hjaelp">7-trinsskala, point og procent får udregnet gennemsnit. Egne vurderinger og fri tekst gør ikke.</p>`,
   {
@@ -1011,9 +1061,15 @@ async function redigerKategori(id) {
   } else {
     const felter = {
       navn: r.v.navn.trim(),
-      skala: r.v.skala || k.skala,
+      skala: r.v.skala,
       vaerdier: r.v.vaerdier.split('\n').map((s) => s.trim()).filter(Boolean),
     };
+    if (k && felter.skala !== k.skala) {
+      // Eksisterende opgaver, der fulgte kategorien, beholder den skala, de havde
+      for (const o of D.opgaver) {
+        if (o.kategoriId === k.id && !o.skala) { o.skala = k.skala; o.vaerdier = [...(k.vaerdier || [])]; }
+      }
+    }
     if (k) Object.assign(k, felter);
     else { const ny = { id: uid(), ...felter }; D.kategorier.push(ny); UI.klasseKategorier.push(ny.id); }
   }
