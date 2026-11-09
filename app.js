@@ -11,13 +11,15 @@
     klasser:    { id, trin, bogstav, aar }   'trin' er klassetrinnet i skoleåret, der starter i 'aar'
     elever:     { id, navn, klasseId }
     kategorier: { id, navn, skala, vaerdier[] }   skala: syvtrin | point | procent | liste | tekst
-    opgaver:    { id, klasseId, kategoriId, navn, dato, maks }
+    opgaver:    { id, klasseId, kategoriId, navn, dato, maks, periode }
+                periode: 1 = til 1. skole-hjem-samtale, 2 = til 2. samtale, 3 = efter sidste samtale
     karakterer: { id, elevId, opgaveId, vaerdi, kommentar }
-    samtaler:   { id, elevId, dato, titel, punkter, noter, aftaler }
+    samtaler:   { id, elevId, dato, nummer, titel, punkter, noter, aftaler }
+                nummer: 1 eller 2 (skoleårets 1./2. samtale), 0 = ekstra samtale uden karakterer
     aftaler:    { id, elevId, dato, titel, tekst }
 */
 
-const VERSION = 1;
+const VERSION = 2;
 
 // ---------- Hjælpefunktioner ----------
 const $ = (s, r = document) => r.querySelector(s);
@@ -130,6 +132,48 @@ function gennemsnit(kat, vaerdier) {
   return { tekst: `${udfyldt.length} udfyldt`, titel: Object.entries(antal).map(([v, n]) => `${v}: ${n}`).join('\n') };
 }
 
+// ---------- Perioder: hvilken skole-hjem-samtale hører en opgave til ----------
+const PERIODER = { 1: '1. samtale', 2: '2. samtale', 3: 'Efter sidste samtale' };
+const PERIODER_LANG = { 1: 'Til 1. skole-hjem-samtale', 2: 'Til 2. skole-hjem-samtale', 3: 'Efter sidste skole-hjem-samtale (vises på 2. samtale)' };
+const SAMTALE_NAVN = { 1: '1. skole-hjem-samtale', 2: '2. skole-hjem-samtale', 0: 'Ekstra samtale' };
+
+/** Sortering af opgaver: skoleår, periode, dato, navn. */
+function sorterOpg(a, b) {
+  return skoleaar(a.dato) - skoleaar(b.dato) || a.periode - b.periode || a.dato.localeCompare(b.dato) || (a.navn || '').localeCompare(b.navn || '', 'da');
+}
+/** Typiske datoer for klassens 1. og 2. samtale i et skoleår (bruges til at gætte en opgaves periode). */
+function klassensSamtaleDatoer(klasseId, aar) {
+  const ids = new Set(D.elever.filter((e) => e.klasseId === klasseId).map((e) => e.id));
+  const s = D.samtaler.filter((x) => ids.has(x.elevId) && skoleaar(x.dato) === aar);
+  const median = (a) => (a.length ? a.sort()[Math.floor((a.length - 1) / 2)] : null);
+  const s1 = median(s.filter((x) => x.nummer === 1).map((x) => x.dato)) || `${aar}-11-30`;
+  let s2 = median(s.filter((x) => x.nummer === 2).map((x) => x.dato)) || `${aar + 1}-03-31`;
+  if (s2 <= s1) s2 = `${aar + 1}-07-31`;
+  return { s1, s2 };
+}
+function gaetPeriode(klasseId, dato) {
+  const { s1, s2 } = klassensSamtaleDatoer(klasseId, skoleaar(dato));
+  return dato <= s1 ? 1 : dato <= s2 ? 2 : 3;
+}
+/** Udfylder felter, som ældre datafiler mangler. Kan køres flere gange. */
+function migrer() {
+  const grupper = new Map();
+  for (const s of D.samtaler) {
+    const k = s.elevId + '|' + skoleaar(s.dato);
+    if (!grupper.has(k)) grupper.set(k, []);
+    grupper.get(k).push(s);
+  }
+  for (const liste of grupper.values()) {
+    const brugt = new Set(liste.map((s) => s.nummer).filter(Boolean));
+    for (const s of liste.sort((a, b) => a.dato.localeCompare(b.dato))) {
+      if (s.nummer !== undefined) continue;
+      s.nummer = [1, 2].find((n) => !brugt.has(n)) ?? 0;
+      if (s.nummer) brugt.add(s.nummer);
+    }
+  }
+  for (const o of D.opgaver) if (!o.periode) o.periode = gaetPeriode(o.klasseId, o.dato);
+}
+
 // ---------- Karakterer ----------
 function saetKarakter(elevId, opgaveId, felter) {
   let k = D.karakterer.find((x) => x.elevId === elevId && x.opgaveId === opgaveId);
@@ -138,16 +182,6 @@ function saetKarakter(elevId, opgaveId, felter) {
   if (tomV(k.vaerdi) && !k.kommentar) D.karakterer = D.karakterer.filter((x) => x !== k);
   aendret();
 }
-/** Alle elevens karakterer med tilhørende opgave og kategori. */
-function elevKarakterer(elevId) {
-  const opg = new Map(D.opgaver.map((o) => [o.id, o]));
-  const kat = new Map(D.kategorier.map((k) => [k.id, k]));
-  return D.karakterer
-    .filter((k) => k.elevId === elevId)
-    .map((k) => { const o = opg.get(k.opgaveId); return o && kat.get(o.kategoriId) ? { k, opg: o, kat: kat.get(o.kategoriId) } : null; })
-    .filter(Boolean);
-}
-
 // =====================================================================
 //   Datafil
 // =====================================================================
@@ -197,7 +231,7 @@ async function brugHandle(h) {
   if (tilladelse !== 'granted') throw new Error('Programmet fik ikke lov til at bruge filen.');
   const data = laesTekst(await (await h.getFile()).text());
   Object.assign(Fil, { handle: h, navn: h.name, test: false, fallback: false, dirty: false, fejl: false, sidstGemt: null });
-  D = data;
+  D = data; migrer();
   await kvSaet('handle', h);
   render();
 }
@@ -226,7 +260,7 @@ function aabnFilFallback() {
   inp.onchange = async () => {
     try {
       const f = inp.files[0]; if (!f) return;
-      D = laesTekst(await f.text());
+      D = laesTekst(await f.text()); migrer();
       Object.assign(Fil, { fallback: true, navn: f.name, test: false, dirty: false });
       render();
     } catch (e) { visFejl(e); }
@@ -234,7 +268,7 @@ function aabnFilFallback() {
   inp.click();
 }
 function startTest() {
-  D = klargoer(lavTestdata());
+  D = klargoer(lavTestdata()); migrer();
   Object.assign(Fil, { handle: null, navn: '', test: true, fallback: false, dirty: false, fejl: false });
   UI.klasseId = null; UI.elevId = null;
   render();
@@ -396,37 +430,29 @@ function htmlElev() {
 
   const samtaler = D.samtaler.filter((s) => s.elevId === elev.id);
   const aftaler = D.aftaler.filter((a) => a.elevId === elev.id);
+  // Elevens karakterer (opgaveId -> karakter) og de opgaver, der er relevante for eleven
+  const elevK = new Map(D.karakterer.filter((k) => k.elevId === elev.id).map((k) => [k.opgaveId, k]));
+  const relevante = D.opgaver.filter((o) => o.klasseId === elev.klasseId || elevK.has(o.id));
+  const opgFor = (aar, nummer) => relevante.filter((o) => skoleaar(o.dato) === aar && (nummer === 1 ? o.periode === 1 : o.periode >= 2));
+
   const kort = [
-    ...samtaler.map((o) => ({ type: 'samtale', o })),
-    ...aftaler.map((o) => ({ type: 'aftale', o })),
-  ].sort((a, b) => a.o.dato.localeCompare(b.o.dato) || (a.type === b.type ? 0 : a.type === 'samtale' ? -1 : 1));
-
-  const alle = elevKarakterer(elev.id).filter((x) => !UI.skjulteKategorier.includes(x.kat.id));
-  const datoer = samtaler.map((s) => s.dato);
-  const iPeriode = (til) => {
-    const forrige = datoer.filter((d) => d < til).sort().pop();
-    const fra = skoleaarStart(skoleaar(til));
-    const efter = forrige && forrige >= fra ? forrige : null;
-    return {
-      fra: efter, // null = fra skoleårets start
-      liste: alle.filter((x) => x.opg.dato <= til && x.opg.dato >= fra && (!efter || x.opg.dato > efter)),
-    };
-  };
-
-  const html = kort.map(({ type, o }) => type === 'samtale' ? htmlSamtaleKort(o, elev, iPeriode(o.dato)) : htmlAftaleKort(o, elev));
-
-  // Kort med karakterer givet siden sidste samtale (forberedelse til den næste)
-  if (!datoer.some((d) => d >= idag())) {
-    const p = iPeriode(idag());
-    if (p.liste.length) {
-      html.push(`<article class="kort siden">
-        <header><span class="type">Endnu ikke afholdt</span><h3>Siden sidste samtale</h3>
-        <div class="meta">${p.fra ? `Efter ${visDato(p.fra)}` : `Siden skoleårets start (${skoleaarTekst(skoleaar(idag()))})`}</div></header>
-        ${htmlKarakterListe(p.liste)}
-        <div class="kort-fod"><button data-act="ny-samtale">+ Opret samtale</button></div>
-      </article>`);
+    ...samtaler.map((o) => ({ dato: o.dato, orden: 0, html: htmlSamtaleKort(o, elev, o.nummer ? opgFor(skoleaar(o.dato), o.nummer) : [], elevK) })),
+    ...aftaler.map((o) => ({ dato: o.dato, orden: 1, html: htmlAftaleKort(o, elev) })),
+  ];
+  // Pladsholderkort for samtaler, der ikke er oprettet endnu, men som allerede har karakterer
+  const aarMedKarakterer = new Set(relevante.filter((o) => elevK.has(o.id)).map((o) => skoleaar(o.dato)));
+  for (const aar of aarMedKarakterer) {
+    for (const n of [1, 2]) {
+      if (samtaler.some((s) => s.nummer === n && skoleaar(s.dato) === aar)) continue;
+      const opg = opgFor(aar, n);
+      const medKarakter = opg.filter((o) => elevK.has(o.id));
+      if (!medKarakter.length) continue;
+      kort.push({ dato: medKarakter.map((o) => o.dato).sort().pop(), orden: 2, html: htmlPladsholderKort(n, aar, elev, opg, elevK) });
     }
   }
+  kort.sort((a, b) => a.dato.localeCompare(b.dato) || a.orden - b.orden);
+  const html = kort.map((k) => k.html);
+
   h += `<div class="tidslinje-top">${filter}<span class="spacer"></span>${html.length > 1 ? `
     <button class="ikon" data-act="rul" data-retning="-1" title="Rul tilbage i tiden">‹</button>
     <button class="ikon" data-act="rul" data-retning="1" title="Rul frem i tiden">›</button>` : ''}</div>`;
@@ -449,22 +475,31 @@ function klasseVed(elev, dato) {
   const k = find('klasser', elev.klasseId);
   return k ? klasseNavn(k, dato) : '';
 }
-function htmlSamtaleKort(s, elev, periode) {
+function htmlSamtaleKort(s, elev, opgaver, elevK) {
   return `<article class="kort samtale">
     <header>
-      <span class="type">Skole-hjem-samtale</span>
+      <span class="type">${SAMTALE_NAVN[s.nummer] || 'Skole-hjem-samtale'}</span>
       <h3>${esc(samtaleTitel(s))}</h3>
       <div class="meta">${visDato(s.dato)} · ${esc(klasseVed(elev, s.dato))}</div>
       <button class="rediger" data-act="rediger-samtale" data-id="${s.id}">Redigér</button>
     </header>
-    ${tekstFelt('Punkter at tale om', s.punkter)}
-    ${tekstFelt('Noter fra samtalen', s.noter)}
-    ${tekstFelt('Aftaler', s.aftaler)}
-    <section class="karakterer">
-      <h4>Karakterer og vurderinger
-        <small>${periode.fra ? `efter ${visDato(periode.fra)}` : 'siden skoleårets start'}</small></h4>
-      ${periode.liste.length ? htmlKarakterListe(periode.liste) : '<p class="tom-felt">Ingen i perioden</p>'}
-    </section>
+    <div class="tekst-del">
+      ${tekstFelt('Punkter at tale om', s.punkter)}
+      ${tekstFelt('Noter fra samtalen', s.noter)}
+      ${tekstFelt('Aftaler', s.aftaler)}
+    </div>
+    ${s.nummer ? htmlKarakterSektion(opgaver, elevK, s.nummer) : ''}
+  </article>`;
+}
+function htmlPladsholderKort(n, aar, elev, opgaver, elevK) {
+  return `<article class="kort siden">
+    <header>
+      <span class="type">${SAMTALE_NAVN[n]}</span>
+      <h3>Ikke oprettet endnu</h3>
+      <div class="meta">Skoleåret ${skoleaarTekst(aar)} · ${esc(klasseVed(elev, skoleaarStart(aar)))}</div>
+    </header>
+    ${htmlKarakterSektion(opgaver, elevK, n)}
+    <div class="kort-fod"><button data-act="ny-samtale" data-nummer="${n}" data-aar="${aar}">+ Opret samtalen</button></div>
   </article>`;
 }
 function htmlAftaleKort(a, elev) {
@@ -478,16 +513,38 @@ function htmlAftaleKort(a, elev) {
     ${a.tekst ? `<p class="tekst">${esc(a.tekst)}</p>` : ''}
   </article>`;
 }
-function htmlKarakterListe(liste) {
-  const orden = new Map(D.kategorier.map((k, i) => [k.id, i]));
-  const sorteret = [...liste].sort((a, b) => orden.get(a.kat.id) - orden.get(b.kat.id) || a.opg.dato.localeCompare(b.opg.dato));
-  let h = '<table class="mini"><tbody>', sidst = null;
-  for (const { k, opg, kat } of sorteret) {
-    if (kat.id !== sidst) { h += `<tr class="grp"><th colspan="3">${esc(kat.navn)}</th></tr>`; sidst = kat.id; }
-    h += `<tr><td class="d">${visDato(opg.dato).slice(0, 5)}</td><td>${esc(opg.navn || '')}</td><td class="v">${esc(visVaerdi(kat, k.vaerdi, opg))}</td></tr>`;
-    if (k.kommentar) h += `<tr class="komrk"><td></td><td colspan="2" class="kom">${esc(k.kommentar)}</td></tr>`;
+/** Karakterer på et kort: ét lille skema pr. kategori, som på fanen Karakterer. */
+function htmlKarakterSektion(opgaver, elevK, nummer) {
+  const skemaer = [];
+  let harEfter = false;
+  for (const kat of D.kategorier) {
+    if (UI.skjulteKategorier.includes(kat.id)) continue;
+    const kol = opgaver.filter((o) => o.kategoriId === kat.id).sort(sorterOpg);
+    if (!kol.length) continue;
+    // Tyk streg før den første opgave, der er givet efter samtalen (kun på 2. samtale)
+    const streg = nummer === 2 ? kol.findIndex((o) => o.periode === 3) : -1;
+    if (streg >= 0) harEfter = true;
+    const c = (i) => (i === streg ? 'efter' : '');
+    const erTal = SKALAER[kat.skala].tal;
+    skemaer.push(`<div class="kskema-ramme"><table class="kskema">
+      <thead>
+        <tr><th class="kat" colspan="${kol.length}">${esc(kat.navn)} <span class="skala">${SKALAER[kat.skala].navn}</span></th></tr>
+        <tr>${kol.map((o, i) => `<th class="${c(i)}" title="${esc(PERIODER[o.periode])}"><span class="opg-navn">${esc(o.navn || '(uden navn)')}</span><span class="opg-dato">${visDato(o.dato)}</span></th>`).join('')}</tr>
+      </thead>
+      <tbody><tr>${kol.map((o, i) => {
+        const k = elevK.get(o.id);
+        const v = k ? visVaerdi(kat, k.vaerdi, o) : '';
+        const kom = k?.kommentar || '';
+        const titel = [erTal ? '' : v, kom].filter(Boolean).join('\n');
+        return `<td class="${c(i)}${kom ? ' har-kom' : ''}${erTal ? '' : ' tekst-v'}" title="${esc(titel)}">${v ? esc(v) : '<span class="tom-v">–</span>'}</td>`;
+      }).join('')}</tr></tbody>
+    </table></div>`);
   }
-  return h + '</tbody></table>';
+  return `<section class="karakterer">
+    <h4>Karakterer og vurderinger</h4>
+    ${skemaer.length ? skemaer.join('') : '<p class="tom-felt">Ingen karakterer knyttet til denne samtale endnu</p>'}
+    ${harEfter ? '<p class="forklaring"><span class="streg-eks"></span>Til højre for den tykke streg: givet efter samtalen</p>' : ''}
+  </section>`;
 }
 
 // ---------- Klassevisning: karakterskema ----------
@@ -515,40 +572,49 @@ function htmlKlasse() {
   if (!elever.length) return h + tomTilstand('Klassen har ingen elever endnu.', 'Tilføj elever under <b>Opsætning</b>.');
 
   const idx = new Map(D.karakterer.map((k) => [k.elevId + '|' + k.opgaveId, k]));
-  const grupper = valgte.map((kat) => ({
-    kat,
-    opg: D.opgaver.filter((o) => o.klasseId === klasse.id && o.kategoriId === kat.id && (valgtAar === 'alle' || skoleaar(o.dato) === valgtAar))
-      .sort((a, b) => a.dato.localeCompare(b.dato) || (a.navn || '').localeCompare(b.navn || '', 'da')),
-  }));
+  const grupper = valgte.map((kat) => {
+    const opg = D.opgaver.filter((o) => o.klasseId === klasse.id && o.kategoriId === kat.id && (valgtAar === 'alle' || skoleaar(o.dato) === valgtAar)).sort(sorterOpg);
+    // Del kolonnerne op i perioder (1. samtale / 2. samtale / efter)
+    const perioder = [];
+    for (const o of opg) {
+      const noegle = skoleaar(o.dato) + '|' + o.periode;
+      if (perioder.at(-1)?.noegle === noegle) perioder.at(-1).opg.push(o);
+      else perioder.push({ noegle, aar: skoleaar(o.dato), periode: o.periode, opg: [o] });
+    }
+    return { kat, opg, perioder, skift: new Set(perioder.slice(1).map((p) => p.opg[0].id)) };
+  });
+  const sk = (g, o) => (g.skift.has(o.id) ? ' skift' : '');
 
   const r1 = grupper.map((g) => `<th class="kat" colspan="${g.opg.length + 1}">${esc(g.kat.navn)} <span class="skala">${SKALAER[g.kat.skala].navn}</span></th>`).join('');
-  const r2 = grupper.map((g) => g.opg.map((o) => `<th class="opg"><button class="opg-knap" data-act="rediger-opgave" data-id="${o.id}" title="Redigér ${esc(o.navn || 'opgave')}">
+  const r2 = grupper.map((g) => g.perioder.map((p, i) => `<th class="per${i ? ' skift' : ''}" colspan="${p.opg.length}">${PERIODER[p.periode]}${valgtAar === 'alle' ? ` <span class="per-aar">${skoleaarTekst(p.aar)}</span>` : ''}</th>`).join('')
+    + `<th class="ny" rowspan="2"><button class="ny-knap" data-act="ny-opgave" data-kat="${g.kat.id}" title="Ny opgave i ${esc(g.kat.navn)}">+ Ny</button></th>`).join('');
+  const r3 = grupper.map((g) => g.opg.map((o) => `<th class="opg${sk(g, o)}"><button class="opg-knap" data-act="rediger-opgave" data-id="${o.id}" title="Redigér ${esc(o.navn || 'opgave')}">
       <span class="opg-navn">${esc(o.navn || '(uden navn)')}</span>
-      <span class="opg-dato">${visDato(o.dato)}${o.maks ? ` · maks ${o.maks}` : ''}</span></button></th>`).join('')
-    + `<th class="ny"><button class="ny-knap" data-act="ny-opgave" data-kat="${g.kat.id}" title="Ny opgave i ${esc(g.kat.navn)}">+ Ny</button></th>`).join('');
+      <span class="opg-dato">${visDato(o.dato)}${o.maks ? ` · maks ${o.maks}` : ''}</span></button></th>`).join('')).join('');
 
   const rows = elever.map((e) => `<tr><th class="navn" scope="row">${esc(e.navn)}</th>${grupper.map((g) =>
-    g.opg.map((o) => htmlCelle(e, o, g.kat, idx.get(e.id + '|' + o.id))).join('') + '<td class="ny"></td>').join('')}</tr>`).join('');
+    g.opg.map((o) => htmlCelle(e, o, g.kat, idx.get(e.id + '|' + o.id), sk(g, o))).join('') + '<td class="ny"></td>').join('')}</tr>`).join('');
 
   const fod = grupper.map((g) => g.opg.map((o) => {
     const gn = gennemsnit(g.kat, elever.map((e) => idx.get(e.id + '|' + o.id)?.vaerdi));
-    return `<td class="gns" data-gns="${o.id}" title="${esc(gn.titel)}">${esc(gn.tekst)}</td>`;
+    return `<td class="gns${sk(g, o)}" data-gns="${o.id}" title="${esc(gn.titel)}">${esc(gn.tekst)}</td>`;
   }).join('') + '<td class="ny"></td>').join('');
 
   const lister = valgte.filter((k) => k.skala === 'liste')
     .map((k) => `<datalist id="dl-${k.id}">${(k.vaerdier || []).map((v) => `<option value="${esc(v)}">`).join('')}</datalist>`).join('');
 
   return h + `<div class="grid-wrap"><table class="grid">
-    <thead><tr><th class="navn hjoerne" rowspan="2">Elev <span class="antal">(${elever.length})</span></th>${r1}</tr><tr>${r2}</tr></thead>
+    <thead><tr><th class="navn hjoerne" rowspan="3">Elev <span class="antal">(${elever.length})</span></th>${r1}</tr><tr>${r2}</tr><tr>${r3}</tr></thead>
     <tbody>${rows}</tbody>
     <tfoot><tr><th class="navn">Klassens gennemsnit</th>${fod}</tr></tfoot>
   </table></div>${lister}
   <p class="hjaelp">Tip: Skriv en karakter og tryk <kbd>Enter</kbd> for at gå til næste elev. Klik på ✎ i et felt for at skrive en kommentar.
-  Klik på en opgaves navn for at rette navn, dato eller slette den.</p>`;
+  Klik på en opgaves navn for at rette navn, dato, hvilken samtale den hører til, eller slette den.
+  Den tykke streg adskiller opgaver til 1. samtale, 2. samtale og efter sidste samtale.</p>`;
 }
-function htmlCelle(elev, opg, kat, k) {
+function htmlCelle(elev, opg, kat, k, ekstraKlasse = '') {
   const kom = k?.kommentar || '';
-  return `<td class="celle${kat.skala === 'tekst' || kat.skala === 'liste' ? ' bred' : ''}"><div class="celle-indre">
+  return `<td class="celle${kat.skala === 'tekst' || kat.skala === 'liste' ? ' bred' : ''}${ekstraKlasse}"><div class="celle-indre">
     <input class="celle-input" data-elev="${elev.id}" data-opg="${opg.id}" value="${esc(k ? feltVaerdi(kat, k.vaerdi) : '')}"
       ${kat.skala === 'liste' ? `list="dl-${kat.id}"` : ''} autocomplete="off" spellcheck="false"
       aria-label="${esc(elev.navn)}, ${esc(opg.navn || kat.navn)}" title="${esc(kom)}">
@@ -673,21 +739,35 @@ function aabnDialog(titel, indhold, { slet = false, gemTekst = 'Gem', bred = fal
 }
 const datoFelt = (navn, v, label = 'Dato') => `<label>${label}<input type="date" name="${navn}" required value="${esc(v || idag())}"></label>`;
 
-async function redigerSamtale(id) {
+async function redigerSamtale(id, forslag = null) {
   const elev = find('elever', UI.elevId);
   const s = id ? find('samtaler', id) : null;
+  const nu = skoleaar(idag());
+  const aar = forslag?.aar ?? nu;
+  const elevensI = (a) => D.samtaler.filter((x) => x.elevId === elev.id && skoleaar(x.dato) === a && x !== s);
+  const nummer = s ? s.nummer : forslag?.nummer ?? ([1, 2].find((n) => !elevensI(aar).some((x) => x.nummer === n)) || 0);
+  let dato = s?.dato || idag();
+  if (!s && aar !== nu) { const { s1, s2 } = klassensSamtaleDatoer(elev.klasseId, aar); dato = nummer === 2 ? s2 : s1; }
   const r = await aabnDialog(s ? 'Redigér skole-hjem-samtale' : `Ny skole-hjem-samtale – ${elev.navn}`, `
-    <div class="raekke">${datoFelt('dato', s?.dato)}
-      <label>Titel <input name="titel" value="${esc(s?.titel || '')}" placeholder="Udfyldes automatisk, f.eks. 'Efterår 2026'"></label></div>
+    <div class="raekke">${datoFelt('dato', dato)}
+      <label>Hvilken samtale<select name="nummer">${[1, 2, 0].map((n) => `<option value="${n}" ${n === nummer ? 'selected' : ''}>${SAMTALE_NAVN[n]}${n ? '' : ' (uden karakterer)'}</option>`).join('')}</select></label></div>
+    <label>Titel <input name="titel" value="${esc(s?.titel || '')}" placeholder="Udfyldes automatisk, f.eks. 'Efterår 2026'"></label>
     <label>Punkter at tale om<textarea name="punkter" rows="4">${esc(s?.punkter || '')}</textarea></label>
     <label>Noter fra samtalen<textarea name="noter" rows="4">${esc(s?.noter || '')}</textarea></label>
-    <label>Aftaler<textarea name="aftaler" rows="3">${esc(s?.aftaler || '')}</textarea></label>`, { slet: !!s, bred: true });
+    <label>Aftaler<textarea name="aftaler" rows="3">${esc(s?.aftaler || '')}</textarea></label>`, {
+    slet: !!s, bred: true,
+    valider: (v) => {
+      const n = Number(v.nummer);
+      return n && elevensI(skoleaar(v.dato)).some((x) => x.nummer === n)
+        ? `${elev.navn} har allerede en ${SAMTALE_NAVN[n].toLowerCase()} i skoleåret ${skoleaarTekst(skoleaar(v.dato))}.` : null;
+    },
+  });
   if (!r) return;
   if (r.handling === 'slet') {
     if (!confirm('Slet denne skole-hjem-samtale?')) return;
     D.samtaler = D.samtaler.filter((x) => x !== s);
   } else {
-    const felter = { dato: r.v.dato, titel: r.v.titel.trim(), punkter: r.v.punkter.trim(), noter: r.v.noter.trim(), aftaler: r.v.aftaler.trim() };
+    const felter = { dato: r.v.dato, nummer: Number(r.v.nummer), titel: r.v.titel.trim(), punkter: r.v.punkter.trim(), noter: r.v.noter.trim(), aftaler: r.v.aftaler.trim() };
     if (s) Object.assign(s, felter); else D.samtaler.push({ id: uid(), elevId: elev.id, ...felter });
   }
   aendret(); render();
@@ -720,15 +800,25 @@ async function redigerOpgave(id, kategoriId) {
     <label>Navn på opgave / prøve<input name="navn" value="${esc(o?.navn || '')}" placeholder="F.eks. 'Terminsprøve' eller 'Kapitel 3'"></label>
     <div class="raekke">${datoFelt('dato', o?.dato)}
       ${kat.skala === 'point' ? `<label>Maks. point (valgfrit)<input name="maks" type="number" min="1" step="any" value="${esc(o?.maks || '')}"></label>` : ''}</div>
+    <label>Hører til<select name="periode">${[1, 2, 3].map((p) => `<option value="${p}" ${p === (o ? o.periode : gaetPeriode(klasse.id, idag())) ? 'selected' : ''}>${PERIODER_LANG[p]}</option>`).join('')}</select></label>
     ${o ? `<p class="hjaelp">${flertal(antal, 'elev har', 'elever har')} fået karakter i denne opgave.</p>` : ''}`,
-  { slet: !!o, gemTekst: o ? 'Gem' : 'Opret' });
+  {
+    slet: !!o, gemTekst: o ? 'Gem' : 'Opret',
+    efterAabning: (f) => {
+      // Foreslå automatisk en periode ud fra datoen, indtil brugeren selv vælger
+      let roert = !!o;
+      const sel = $('select[name=periode]', f), dato = $('input[name=dato]', f);
+      sel.addEventListener('change', () => { roert = true; });
+      dato.addEventListener('change', () => { if (!roert && dato.value) sel.value = gaetPeriode(klasse.id, dato.value); });
+    },
+  });
   if (!r) return;
   if (r.handling === 'slet') {
     if (!confirm(`Slet opgaven${antal ? ` og ${flertal(antal, 'karakter', 'karakterer')}` : ''}?`)) return;
     D.opgaver = D.opgaver.filter((x) => x !== o);
     D.karakterer = D.karakterer.filter((k) => k.opgaveId !== o.id);
   } else {
-    const felter = { navn: r.v.navn.trim(), dato: r.v.dato, maks: r.v.maks ? Number(r.v.maks) : null };
+    const felter = { navn: r.v.navn.trim(), dato: r.v.dato, maks: r.v.maks ? Number(r.v.maks) : null, periode: Number(r.v.periode) };
     if (o) Object.assign(o, felter);
     else { const ny = { id: uid(), klasseId: klasse.id, kategoriId: kat.id, ...felter }; D.opgaver.push(ny); id = ny.id; }
   }
@@ -888,7 +978,7 @@ const HANDLINGER = {
     rulTilSlut = true; render();
   },
   rul: (el) => { const tl = $('.tidslinje'); tl.scrollBy({ left: Number(el.dataset.retning) * Math.max(300, tl.clientWidth * 0.8), behavior: 'smooth' }); },
-  'ny-samtale': () => redigerSamtale(null),
+  'ny-samtale': (el) => redigerSamtale(null, el.dataset.nummer ? { nummer: Number(el.dataset.nummer), aar: Number(el.dataset.aar) } : null),
   'rediger-samtale': (el) => redigerSamtale(el.dataset.id),
   'ny-aftale': () => redigerAftale(null),
   'rediger-aftale': (el) => redigerAftale(el.dataset.id),

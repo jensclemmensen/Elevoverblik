@@ -16,7 +16,7 @@ function lavTestdata() {
   const sy = nu.getMonth() + 1 >= 8 ? nu.getFullYear() : nu.getFullYear() - 1;
 
   const d = {
-    format: 'elevoverblik', version: 1, indstillinger: { startMaaned: 8 },
+    format: 'elevoverblik', version: 2, indstillinger: { startMaaned: 8 },
     klasser: [], elever: [], kategorier: [], opgaver: [], karakterer: [], samtaler: [], aftaler: [],
   };
 
@@ -47,6 +47,7 @@ function lavTestdata() {
       elever.push({ id: id(), navn, klasseId: klasse.id, evne: r() });
     }
     for (const y of [sy - 1, sy]) {
+      const s1 = `${y}-11-20`, s2 = `${y + 1}-03-12`;
       const plan = [
         [problem, `${y}-09-22`, 'Kapitel 1'], [problem, `${y + 1}-01-17`, 'Terminsprøve'], [problem, `${y + 1}-04-10`, 'Kapitel 5'],
         [faerdighed, `${y}-10-04`, 'Brøker', 40], [faerdighed, `${y + 1}-02-21`, 'Ligninger', 40],
@@ -56,7 +57,7 @@ function lavTestdata() {
       ];
       for (const [k, dato, navn, maks] of plan) {
         if (dato > iDag) continue;
-        const o = { id: id(), klasseId: klasse.id, kategoriId: k.id, navn, dato, maks: maks || null };
+        const o = { id: id(), klasseId: klasse.id, kategoriId: k.id, navn, dato, maks: maks || null, periode: dato <= s1 ? 1 : dato <= s2 ? 2 : 3 };
         d.opgaver.push(o);
         for (const e of elever) {
           if (r() < 0.05) continue; // fravær
@@ -70,11 +71,11 @@ function lavTestdata() {
           d.karakterer.push({ id: id(), elevId: e.id, opgaveId: o.id, vaerdi: v, kommentar: r() < 0.15 ? vaelg(kommentarer) : '' });
         }
       }
-      for (const dato of [`${y}-11-20`, `${y + 1}-03-12`]) {
+      for (const [nummer, dato] of [[1, s1], [2, s2]]) {
         if (dato > iDag) continue;
         for (const e of elever) {
           d.samtaler.push({
-            id: id(), elevId: e.id, dato, titel: '',
+            id: id(), elevId: e.id, dato, nummer, titel: '',
             punkter: `${vaelg(punkter)}\n${vaelg(punkter)}`,
             noter: r() < 0.5 ? 'God samtale. Eleven fortæller, at det går godt i klassen.' : 'Forældrene er bekymrede for lektiemængden.',
             aftaler: r() < 0.6 ? vaelg(aftaleTekst) : '',

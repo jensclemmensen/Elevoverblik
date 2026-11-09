@@ -136,13 +136,30 @@ details.filter .chips { margin-top: 8px; }
 .kort > .tekst { margin-top: 10px; }
 .kort-fod { margin-top: 12px; }
 
-table.mini { width: 100%; border-collapse: collapse; font-size: 13px; }
-table.mini th { text-align: left; padding: 8px 0 2px; font-weight: 600; }
-table.mini td { padding: 2px 4px; border-top: 1px solid var(--kant-lys); vertical-align: top; }
-table.mini td.d { color: var(--daempet); white-space: nowrap; width: 1%; padding-left: 0; }
-table.mini td.v { text-align: right; font-weight: 600; white-space: nowrap; }
-table.mini tr.komrk td { border-top: none; padding-top: 0; }
-table.mini .kom { color: var(--daempet); font-style: italic; font-size: 12px; }
+.kort.samtale, .kort.siden { flex: 0 0 auto; min-width: 360px; max-width: 760px; }
+/* Teksten må ikke gøre kortet bredere – kun karakterskemaerne bestemmer bredden */
+.kort .tekst-del, .kort .forklaring, .kort .tom-felt { width: 0; min-width: 100%; }
+
+/* Små karakterskemaer på kortene (samme udseende som fanen Karakterer) */
+.kskema-ramme { overflow-x: auto; margin-top: 8px; border: 1px solid var(--kant); border-radius: 8px; }
+table.kskema { border-collapse: separate; border-spacing: 0; font-size: 13px; width: 100%; }
+.kskema th, .kskema td { border-right: 1px solid var(--kant-lys); border-bottom: 1px solid var(--kant-lys); }
+.kskema tr > :last-child { border-right: none; }
+.kskema tbody td { border-bottom: none; }
+.kskema thead th { background: var(--flade-2); text-align: left; font-weight: 400; padding: 4px 8px; vertical-align: bottom; }
+.kskema th.kat { font-weight: 700; padding: 5px 8px; border-bottom-color: var(--kant); }
+.kskema .opg-navn, .kskema .opg-dato { display: block; }
+.kskema td { padding: 6px 8px; text-align: center; font-weight: 600; min-width: 74px; position: relative; background: var(--flade); }
+.kskema td.tekst-v { text-align: left; font-weight: 500; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kskema td.har-kom { cursor: help; }
+.kskema td.har-kom::after {
+  content: ''; position: absolute; top: 0; right: 0;
+  border-style: solid; border-width: 0 7px 7px 0; border-color: transparent var(--accent) transparent transparent;
+}
+.kskema .tom-v { color: var(--daempet); font-weight: 400; }
+.kskema .efter { border-left: 3px solid var(--tekst); }
+.kort .forklaring { display: flex; align-items: center; gap: 6px; margin: 8px 0 0; font-size: 12px; color: var(--daempet); }
+.streg-eks { display: inline-block; width: 3px; height: 14px; background: var(--tekst); flex: none; }
 
 /* ---------- Karakterskema ---------- */
 .grid-wrap {
@@ -191,6 +208,9 @@ table.grid { border-collapse: separate; border-spacing: 0; font-size: 14px; }
 }
 .celle:hover .kom-knap, .celle:focus-within .kom-knap { opacity: .75; }
 .kom-knap.har { opacity: 1; color: var(--accent); font-weight: 700; }
+.grid th.per { padding: 3px 8px; text-align: left; font-size: 11px; font-weight: 600; color: var(--daempet); text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }
+.grid .per-aar { font-weight: 400; text-transform: none; }
+.grid .skift { border-left: 3px solid #4a5263; }
 .grid td.gns { padding: 6px 8px; text-align: center; font-weight: 700; white-space: nowrap; }
 
 /* ---------- Opsætning ---------- */
