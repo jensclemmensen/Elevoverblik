@@ -626,21 +626,24 @@ function htmlKlasse() {
     return { kat, opg, perioder, skift: new Set(perioder.slice(1).map((p) => p.opg[0].id)) };
   });
   const sk = (g, o) => (g.skift.has(o.id) ? ' skift' : '');
+  // Tyk sort streg før hver kategori (undtagen den første) – fra kategoriens navn ned til gennemsnittet
+  const kg = (gi, foerst = true) => (gi > 0 && foerst ? ' katgraense' : '');
 
-  const r1 = grupper.map((g) => `<th class="kat" colspan="${g.opg.length + 1}">${esc(g.kat.navn)} <span class="skala">${SKALAER[g.kat.skala].navn}</span></th>`).join('');
-  const r2 = grupper.map((g) => g.perioder.map((p, i) => `<th class="per${i ? ' skift' : ''}" colspan="${p.opg.length}">${PERIODER[p.periode]}${valgtAar === 'alle' ? ` <span class="per-aar">${skoleaarTekst(p.aar)}</span>` : ''}</th>`).join('')
-    + `<th class="ny" rowspan="2"><button class="ny-knap" data-act="ny-opgave" data-kat="${g.kat.id}" title="Ny opgave i ${esc(g.kat.navn)}">+ Ny</button></th>`).join('');
-  const r3 = grupper.map((g) => g.opg.map((o) => `<th class="opg${sk(g, o)}"><button class="opg-knap" data-act="rediger-opgave" data-id="${o.id}" title="Redigér ${esc(o.navn || 'opgave')}${o.skala ? esc(' – ' + SKALAER[o.skala].navn) : ''}">
+  const r1 = grupper.map((g, gi) => `<th class="kat${kg(gi)}" colspan="${g.opg.length + 1}">${esc(g.kat.navn)} <span class="skala">${SKALAER[g.kat.skala].navn}</span></th>`).join('');
+  const r2 = grupper.map((g, gi) => g.perioder.map((p, i) => `<th class="per${i ? ' skift' : kg(gi)}" colspan="${p.opg.length}">${PERIODER[p.periode]}${valgtAar === 'alle' ? ` <span class="per-aar">${skoleaarTekst(p.aar)}</span>` : ''}</th>`).join('')
+    + `<th class="ny${kg(gi, !g.opg.length)}" rowspan="2"><button class="ny-knap" data-act="ny-opgave" data-kat="${g.kat.id}" title="Ny opgave i ${esc(g.kat.navn)}">+ Ny</button></th>`).join('');
+  const r3 = grupper.map((g, gi) => g.opg.map((o, j) => `<th class="opg${sk(g, o)}${kg(gi, j === 0)}"><button class="opg-knap" data-act="rediger-opgave" data-id="${o.id}" title="Redigér ${esc(o.navn || 'opgave')}${o.skala ? esc(' – ' + SKALAER[o.skala].navn) : ''}">
       <span class="opg-navn">${esc(o.navn || '(uden navn)')}</span>
       <span class="opg-dato">${visDato(o.dato)}${o.maks ? ` · maks ${o.maks}` : ''}</span></button></th>`).join('')).join('');
 
-  const rows = elever.map((e) => `<tr><th class="navn" scope="row">${esc(e.navn)}</th>${grupper.map((g) =>
-    g.opg.map((o) => htmlCelle(e, o, g.kat, idx.get(e.id + '|' + o.id), sk(g, o))).join('') + '<td class="ny"></td>').join('')}</tr>`).join('');
+  const rows = elever.map((e) => `<tr><th class="navn" scope="row">${esc(e.navn)}</th>${grupper.map((g, gi) =>
+    g.opg.map((o, j) => htmlCelle(e, o, g.kat, idx.get(e.id + '|' + o.id), sk(g, o) + kg(gi, j === 0))).join('')
+    + `<td class="ny${kg(gi, !g.opg.length)}"></td>`).join('')}</tr>`).join('');
 
-  const fod = grupper.map((g) => g.opg.map((o) => {
+  const fod = grupper.map((g, gi) => g.opg.map((o, j) => {
     const gn = gennemsnit(skalaFor(g.kat, o), elever.map((e) => idx.get(e.id + '|' + o.id)?.vaerdi));
-    return `<td class="gns${sk(g, o)}" data-gns="${o.id}" title="${esc(gn.titel)}">${esc(gn.tekst)}</td>`;
-  }).join('') + '<td class="ny"></td>').join('');
+    return `<td class="gns${sk(g, o)}${kg(gi, j === 0)}" data-gns="${o.id}" title="${esc(gn.titel)}">${esc(gn.tekst)}</td>`;
+  }).join('') + `<td class="ny${kg(gi, !g.opg.length)}"></td>`).join('');
 
   // Forslagslister til opgaver med "egne vurderinger"
   const lister = grupper.flatMap((g) => g.opg.map((o) => ({ o, sk: skalaFor(g.kat, o) })))
@@ -654,7 +657,7 @@ function htmlKlasse() {
   </table></div>${lister}
   <p class="hjaelp">Tip: Skriv en karakter og tryk <kbd>Enter</kbd> for at gå til næste elev. Klik på ✎ i et felt for at skrive en kommentar.
   Klik på en opgaves navn for at rette navn, dato, hvilken samtale den hører til, eller slette den.
-  Den tykke streg adskiller opgaver til 1. samtale, 2. samtale og efter sidste samtale.</p>`;
+  De grå streger adskiller opgaver til 1. samtale, 2. samtale og efter sidste samtale. De sorte streger adskiller kategorierne.</p>`;
 }
 function htmlCelle(elev, opg, kat, k, ekstraKlasse = '') {
   const kom = k?.kommentar || '';

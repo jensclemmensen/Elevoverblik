@@ -5,6 +5,11 @@ Versionsnummeret står også øverst i programmet ved siden af "Elevoverblik".
 
 ---
 
+## v11 – 10. november 2026
+**Tyk sort streg mellem karakterkategorierne på karakterfanen**
+- Mellem kategorierne i karakterskemaet (f.eks. mellem Problemregning og Færdighedsregning) er der nu en tyk, sort streg. Den går hele vejen fra kategoriens navn øverst ned til gennemsnitsrækken.
+- Stregerne mellem 1. samtale, 2. samtale og "efter sidste samtale" er stadig tynde og grå, så de to slags streger er nemme at skelne.
+
 ## v10 – 9. november 2026
 **Den enkelte opgave kan bruge en anden skala end kategorien**
 - Kategoriens skala er nu en standard for nye opgaver. Klikker man på en opgaves navn på karakterfanen, kan man vælge en anden skala til netop den opgave, inklusive egne vurderinger med egne valgmuligheder.
