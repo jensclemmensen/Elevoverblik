@@ -5,6 +5,10 @@ Versionsnummeret står også øverst i programmet ved siden af "Elevoverblik".
 
 ---
 
+## v13 – 13. november 2026
+**Klassetrin ved perioderne, når alle år vises**
+- Vælger man "Alle år" på karakterfanen, står klassen nu foran perioden over kolonnerne, f.eks. **8.c 1. samtale 2026/27**. Så kan man se, hvilket klassetrin klassen gik på, da karaktererne blev givet.
+
 ## v12 – 13. november 2026
 **Standpunktskarakterer med fed skrift og nyt "Vis"-valg på karakterfanen**
 - Opgaver, der hedder **S1**, **S2**, **S3** osv., er standpunktskarakterer. Navnet og karaktererne i kolonnen står med fed skrift, både på karakterfanen og på kortene i elevfanen. Almindelige opgavenavne og karakterer står med lidt tyndere skrift, så forskellen er tydelig.
