@@ -5,6 +5,10 @@ Versionsnummeret står også øverst i programmet ved siden af "Elevoverblik".
 
 ---
 
+## v16 – 13. november 2026
+**Aftaler fra en samtale står på lyserød baggrund**
+- På samtalekortene står teksten under "Aftaler" nu på en lyserød baggrund, så aftalerne er nemme at få øje på. Overskriften og resten af kortet beholder deres farve.
+
 ## v15 – 13. november 2026
 **Hele kommentaren vises, når man holder musen over en karakter**
 - Chromes egen lille hjælpeboks skar lange kommentarer af. Programmet har nu sin egen boks, der viser hele kommentaren, også linjeskift. Det gælder både på karakterfanen og på kortene i elevfanen.

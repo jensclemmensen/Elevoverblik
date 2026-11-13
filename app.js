@@ -496,9 +496,9 @@ function htmlElev() {
   return h + `<div class="tidslinje" data-raekker="${raekker}">${html.join('')}</div>`;
 }
 
-function tekstFelt(overskrift, tekst) {
+function tekstFelt(overskrift, tekst, klasse = '') {
   // Tomme felter vises ikke på kortet (men står stadig i redigér-dialogen)
-  return tekst ? `<section><h4>${overskrift}</h4><p class="tekst">${esc(tekst)}</p></section>` : '';
+  return tekst ? `<section><h4>${overskrift}</h4><p class="tekst${klasse ? ' ' + klasse : ''}">${esc(tekst)}</p></section>` : '';
 }
 function klasseVed(elev, dato) {
   const k = find('klasser', elev.klasseId);
@@ -518,7 +518,7 @@ function htmlSamtaleKort(s, elev, opgaver, elevK, kats) {
     <div class="tekst-del">
       ${tekstFelt('Punkter at tale om', s.punkter)}
       ${tekstFelt('Noter fra samtalen', s.noter)}
-      ${tekstFelt('Aftaler', s.aftaler)}
+      ${tekstFelt('Aftaler', s.aftaler, 'aftaletekst')}
       ${k.overskrift}
     </div>
     ${k.celler}
