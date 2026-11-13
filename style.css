@@ -183,6 +183,7 @@ table.kskema { border-collapse: separate; border-spacing: 0; font-size: 13px; wi
 /* ---------- Karakterskema ---------- */
 .grid-wrap {
   overflow: auto; max-height: calc(100vh - 190px);
+  scroll-padding: 120px 0 44px 230px; /* så den valgte celle ikke gemmer sig bag navne, overskrifter og gennemsnit */
   background: var(--flade); border: 1px solid var(--kant); border-radius: var(--radius);
 }
 table.grid { border-collapse: separate; border-spacing: 0; font-size: 14px; }

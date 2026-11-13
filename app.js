@@ -1227,18 +1227,32 @@ document.addEventListener('click', (e) => {
   if (Traek.undertrykKlik && e.target.closest('.chips[data-sorterbar]')) { e.preventDefault(); e.stopPropagation(); }
 }, true);
 
-// Tastaturnavigation i karakterskemaet: Enter / pil op / pil ned
+// Tastaturnavigation i karakterskemaet: Enter / piletasterne
+// Op/ned: cellen over/under. Venstre/højre: cellen ved siden af i samme række.
+// I felter med tal flytter venstre/højre altid; i tekstfelter kun når markøren står i starten/slutningen.
 document.addEventListener('keydown', (e) => {
   const inp = e.target;
-  if (!inp.matches?.('.celle-input')) return;
-  const op = e.key === 'ArrowUp' && !inp.list;
-  const ned = e.key === 'Enter' || (e.key === 'ArrowDown' && !inp.list);
-  if (!op && !ned) return;
+  if (!inp.matches?.('.celle-input') || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+  let maal = null;
+  if (e.key === 'Enter' || e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    if (e.key !== 'Enter' && inp.list) return; // pil op/ned bruges til forslagslisten
+    const kolonne = $$(`.celle-input[data-opg="${inp.dataset.opg}"]`);
+    maal = kolonne[kolonne.indexOf(inp) + (e.key === 'ArrowUp' ? -1 : 1)];
+    if (!maal) { e.preventDefault(); if (e.key === 'Enter') inp.blur(); return; }
+  } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    const venstre = e.key === 'ArrowLeft';
+    const opg = find('opgaver', inp.dataset.opg);
+    const erTal = SKALAER[skalaFor(find('kategorier', opg.kategoriId), opg).skala].tal;
+    const altValgt = inp.selectionStart === 0 && inp.selectionEnd === inp.value.length;
+    const vedKant = venstre ? inp.selectionStart === 0 && inp.selectionEnd === 0 : inp.selectionStart === inp.value.length;
+    if (!erTal && !altValgt && !vedKant) return; // flyt markøren inde i teksten som normalt
+    const raekke = $$('.celle-input', inp.closest('tr'));
+    maal = raekke[raekke.indexOf(inp) + (venstre ? -1 : 1)];
+    if (!maal) { e.preventDefault(); return; }
+  } else return;
   e.preventDefault();
-  const kolonne = $$(`.celle-input[data-opg="${inp.dataset.opg}"]`);
-  const i = kolonne.indexOf(inp);
-  const maal = kolonne[i + (op ? -1 : 1)];
-  if (maal) { maal.focus(); maal.select(); } else inp.blur();
+  maal.focus();
+  maal.select();
 });
 
 // ---------- Egen hjælpeboks ved musen (Chromes egen afkorter lange tekster) ----------

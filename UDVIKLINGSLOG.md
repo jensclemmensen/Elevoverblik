@@ -5,6 +5,12 @@ Versionsnummeret står også øverst i programmet ved siden af "Elevoverblik".
 
 ---
 
+## v17 – 13. november 2026
+**Venstre og højre pil flytter mellem cellerne på karakterfanen**
+- Ligesom pil op og ned kan man nu bruge venstre og højre pil til at gå til cellen ved siden af i samme række, også på tværs af kategorierne.
+- I felter med tal (7-trinsskala, point, procent) flytter pilene altid til næste celle. I tekstfelter (egne vurderinger, fri tekst) flytter de kun, når markøren står i starten eller slutningen af teksten, så man stadig kan rette midt i en tekst.
+- Når skemaet ruller, sørger programmet for, at den valgte celle ikke gemmer sig bag navnekolonnen, overskrifterne eller gennemsnitsrækken.
+
 ## v16 – 13. november 2026
 **Aftaler fra en samtale står på lyserød baggrund**
 - På samtalekortene står teksten under "Aftaler" nu på en lyserød baggrund, så aftalerne er nemme at få øje på. Overskriften og resten af kortet beholder deres farve.
