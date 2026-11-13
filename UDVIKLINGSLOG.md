@@ -5,6 +5,13 @@ Versionsnummeret står også øverst i programmet ved siden af "Elevoverblik".
 
 ---
 
+## v12 – 13. november 2026
+**Standpunktskarakterer med fed skrift og nyt "Vis"-valg på karakterfanen**
+- Opgaver, der hedder **S1**, **S2**, **S3** osv., er standpunktskarakterer. Navnet og karaktererne i kolonnen står med fed skrift, både på karakterfanen og på kortene i elevfanen. Almindelige opgavenavne og karakterer står med lidt tyndere skrift, så forskellen er tydelig.
+- Nyt valg til højre for skoleåret på karakterfanen: **Vis: Alle karakterer / Kun standpunktskarakterer / Kun sidste standpunktskarakter**.
+- "Kun sidste standpunktskarakter" viser for hver kategori den sidste standpunktskarakter, som mindst én elev har fået. Kolonnen vises for hele klassen, også for elever, der ikke har fået den endnu. En tom S-kolonne, der er oprettet på forhånd, springes over.
+- Mærket foran kategori-knapperne hedder nu "Kategorier:" i stedet for "Vis:".
+
 ## v11 – 10. november 2026
 **Tyk sort streg mellem karakterkategorierne på karakterfanen**
 - Mellem kategorierne i karakterskemaet (f.eks. mellem Problemregning og Færdighedsregning) er der nu en tyk, sort streg. Den går hele vejen fra kategoriens navn øverst ned til gennemsnitsrækken.

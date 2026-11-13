@@ -50,7 +50,7 @@ const find = (liste, id) => D[liste].find((x) => x.id === id);
 
 // ---------- Visningsindstillinger (kun id'er – ingen persondata) ----------
 const UI = Object.assign(
-  { vis: 'elev', klasseId: null, elevId: null, klasseKategorier: [], skjulteKategorier: [], filterAaben: false, klasseAar: 'nu' },
+  { vis: 'elev', klasseId: null, elevId: null, klasseKategorier: [], skjulteKategorier: [], filterAaben: false, klasseAar: 'nu', klasseVisning: 'alle' },
   hentUI()
 );
 function hentUI() { try { return JSON.parse(localStorage.getItem('elevoverblik.ui')) || {}; } catch { return {}; } }
@@ -150,6 +150,10 @@ const PERIODER = { 1: '1. samtale', 2: '2. samtale', 3: 'Efter sidste samtale' }
 const PERIODER_LANG = { 1: 'Til 1. skole-hjem-samtale', 2: 'Til 2. skole-hjem-samtale', 3: 'Efter sidste skole-hjem-samtale (vises på 2. samtale)' };
 const SAMTALE_NAVN = { 1: '1. skole-hjem-samtale', 2: '2. skole-hjem-samtale', 0: 'Ekstra samtale' };
 const KORT_NAVN = { 1: '1. skole-hjem', 2: '2. skole-hjem', 0: 'Ekstra samtale' }; // overskrift på kortene
+
+/** Standpunktskarakterer er opgaver, der hedder S1, S2, S3 … (vises med fed skrift). */
+const erStandpunkt = (o) => /^s\d+$/i.test((o.navn || '').trim());
+const VISNINGER = { alle: 'Alle karakterer', standpunkt: 'Kun standpunktskarakterer', sidste: 'Kun sidste standpunktskarakter' };
 
 /** Sortering af opgaver: skoleår, periode, dato, navn. */
 function sorterOpg(a, b) {
@@ -570,7 +574,7 @@ function htmlKarakterRaekker(opgaver, elevK, nummer, kats) {
     return `<div class="kat-celle"><div class="kskema-ramme"><table class="kskema">
       <thead>
         <tr><th class="kat" colspan="${kol.length}">${esc(kat.navn)} <span class="skala">${SKALAER[kat.skala].navn}</span></th></tr>
-        <tr>${kol.map((o, i) => `<th class="${c(i)}" title="${esc(PERIODER[o.periode])}"><span class="opg-navn">${esc(o.navn || '(uden navn)')}</span><span class="opg-dato">${visDato(o.dato)}</span></th>`).join('')}</tr>
+        <tr>${kol.map((o, i) => `<th class="${c(i)}${erStandpunkt(o) ? ' standpunkt' : ''}" title="${esc(PERIODER[o.periode])}"><span class="opg-navn">${esc(o.navn || '(uden navn)')}</span><span class="opg-dato">${visDato(o.dato)}</span></th>`).join('')}</tr>
       </thead>
       <tbody><tr>${kol.map((o, i) => {
         const k = elevK.get(o.id);
@@ -578,7 +582,7 @@ function htmlKarakterRaekker(opgaver, elevK, nummer, kats) {
         const v = k ? visVaerdi(sk, k.vaerdi, o) : '';
         const kom = k?.kommentar || '';
         const titel = [erTal ? '' : v, kom].filter(Boolean).join('\n');
-        return `<td class="${c(i)}${kom ? ' har-kom' : ''}${erTal ? '' : ' tekst-v'}" title="${esc(titel)}">${v ? esc(v) : '<span class="tom-v">–</span>'}</td>`;
+        return `<td class="${c(i)}${kom ? ' har-kom' : ''}${erTal ? '' : ' tekst-v'}${erStandpunkt(o) ? ' standpunkt' : ''}" title="${esc(titel)}">${v ? esc(v) : '<span class="tom-v">–</span>'}</td>`;
       }).join('')}</tr></tbody>
     </table></div></div>`;
   }).join('');
@@ -607,7 +611,10 @@ function htmlKlasse() {
       ${aarListe.map((a) => `<option value="${a === nu ? 'nu' : a}" ${a === valgtAar ? 'selected' : ''}>${skoleaarTekst(a)} (${klasseNavn(klasse, skoleaarStart(a))})${a === nu ? ' – nu' : ''}</option>`).join('')}
       <option value="alle" ${valgtAar === 'alle' ? 'selected' : ''}>Alle år</option>
     </select></label>
-    <div class="chips" data-sorterbar><span class="chips-label">Vis:</span>${kategoriChips('klasse-kategori', (k) => UI.klasseKategorier.includes(k.id))}</div>
+    <label class="inline">Vis <select data-act="klasse-visning">
+      ${Object.entries(VISNINGER).map(([v, t]) => `<option value="${v}" ${UI.klasseVisning === v ? 'selected' : ''}>${t}</option>`).join('')}
+    </select></label>
+    <div class="chips" data-sorterbar><span class="chips-label">Kategorier:</span>${kategoriChips('klasse-kategori', (k) => UI.klasseKategorier.includes(k.id))}</div>
   </div>`;
   if (!D.kategorier.length) return h + tomTilstand('Der er ingen karakterkategorier endnu.', 'Opret dem under <b>Opsætning</b> – f.eks. "Problemregning" og "Færdighedsregning".');
   if (!valgte.length) return h + tomTilstand('Vælg en eller flere kategorier ovenfor.');
@@ -615,7 +622,16 @@ function htmlKlasse() {
 
   const idx = new Map(D.karakterer.map((k) => [k.elevId + '|' + k.opgaveId, k]));
   const grupper = valgte.map((kat) => {
-    const opg = D.opgaver.filter((o) => o.klasseId === klasse.id && o.kategoriId === kat.id && (valgtAar === 'alle' || skoleaar(o.dato) === valgtAar)).sort(sorterOpg);
+    let opg = D.opgaver.filter((o) => o.klasseId === klasse.id && o.kategoriId === kat.id && (valgtAar === 'alle' || skoleaar(o.dato) === valgtAar)).sort(sorterOpg);
+    if (UI.klasseVisning === 'standpunkt') opg = opg.filter(erStandpunkt);
+    else if (UI.klasseVisning === 'sidste') {
+      // Den sidste standpunktskarakter, som mindst én elev har fået – vises for hele klassen.
+      // Er ingen givet endnu, vises den sidste oprettede, så den kan udfyldes.
+      const sp = opg.filter(erStandpunkt);
+      const givet = sp.filter((o) => D.karakterer.some((k) => k.opgaveId === o.id && !tomV(k.vaerdi)));
+      const sidste = (givet.length ? givet : sp).at(-1);
+      opg = sidste ? [sidste] : [];
+    }
     // Del kolonnerne op i perioder (1. samtale / 2. samtale / efter)
     const perioder = [];
     for (const o of opg) {
@@ -625,7 +641,7 @@ function htmlKlasse() {
     }
     return { kat, opg, perioder, skift: new Set(perioder.slice(1).map((p) => p.opg[0].id)) };
   });
-  const sk = (g, o) => (g.skift.has(o.id) ? ' skift' : '');
+  const sk = (g, o) => (g.skift.has(o.id) ? ' skift' : '') + (erStandpunkt(o) ? ' standpunkt' : '');
   // Tyk sort streg før hver kategori (undtagen den første) – fra kategoriens navn ned til gennemsnittet
   const kg = (gi, foerst = true) => (gi > 0 && foerst ? ' katgraense' : '');
 
@@ -951,7 +967,11 @@ async function redigerOpgave(id, kategoriId) {
     } else { const ny = { id: uid(), klasseId: klasse.id, kategoriId: kat.id, ...felter }; D.opgaver.push(ny); id = ny.id; }
   }
   aendret(); render();
-  if (r.handling === 'gem') $(`.celle-input[data-opg="${id}"]`)?.focus();
+  if (r.handling === 'gem') {
+    const felt = $(`.celle-input[data-opg="${id}"]`);
+    if (felt) felt.focus();
+    else if (UI.vis === 'klasse') toast(`Opgaven er gemt, men vises ikke med det valgte skoleår eller "Vis: ${VISNINGER[UI.klasseVisning]}".`);
+  }
 }
 
 async function redigerKommentar(elevId, opgaveId) {
@@ -1144,6 +1164,7 @@ document.addEventListener('change', (e) => {
     case 'vaelg-elev': UI.elevId = el.value; rulTilSlut = true; render(); break;
     case 'elev-kategori': UI.skjulteKategorier = toggle(UI.skjulteKategorier, el.value); render(); break;
     case 'klasse-aar': UI.klasseAar = el.value; render(); break;
+    case 'klasse-visning': UI.klasseVisning = el.value; render(); break;
     case 'klasse-kategori': UI.klasseKategorier = toggle(UI.klasseKategorier, el.value); render(); break;
     case 'start-maaned': D.indstillinger.startMaaned = Number(el.value); aendret(); render(); break;
   }

@@ -168,7 +168,7 @@ table.kskema { border-collapse: separate; border-spacing: 0; font-size: 13px; wi
 .kskema thead th { background: var(--flade-2); text-align: left; font-weight: 400; padding: 4px 8px; vertical-align: bottom; }
 .kskema th.kat { font-weight: 700; padding: 5px 8px; border-bottom-color: var(--kant); }
 .kskema .opg-navn, .kskema .opg-dato { display: block; }
-.kskema td { padding: 6px 8px; text-align: center; font-weight: 600; min-width: 74px; position: relative; background: var(--flade); }
+.kskema td { padding: 6px 8px; text-align: center; font-weight: 500; min-width: 74px; position: relative; background: var(--flade); }
 .kskema td.tekst-v { text-align: left; font-weight: 500; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kskema td.har-kom { cursor: help; }
 .kskema td.har-kom::after {
@@ -205,7 +205,7 @@ table.grid { border-collapse: separate; border-spacing: 0; font-size: 14px; }
   width: 100%; min-width: 88px; padding: 5px 8px; border: none; border-radius: 0; background: none; text-align: left;
 }
 .opg-knap:hover { background: var(--accent-lys); }
-.opg-navn { font-weight: 600; font-size: 13px; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.opg-navn { font-weight: 500; font-size: 13px; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .opg-dato { font-size: 11px; color: var(--daempet); font-weight: 400; white-space: nowrap; }
 .grid th.ny, .grid td.ny { min-width: 64px; background: #fafbfc; }
 .grid thead th.ny { background: var(--flade-2); text-align: center; vertical-align: bottom; padding: 4px; }
@@ -283,3 +283,8 @@ dialog::backdrop { background: rgba(20, 25, 35, .45); }
 }
 
 .version { font-size: 11px; font-weight: 500; color: var(--daempet); margin-left: 4px; vertical-align: middle; }
+
+/* Standpunktskarakterer (S1, S2, S3 …) står med fed skrift – navn og karakterer */
+.grid .standpunkt .opg-navn, .grid td.standpunkt .celle-input, .grid td.gns.standpunkt,
+.kskema .standpunkt .opg-navn, .kskema td.standpunkt { font-weight: 800; }
+.grid .standpunkt .opg-navn, .kskema .standpunkt .opg-navn { font-size: 14px; }

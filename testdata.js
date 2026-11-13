@@ -16,7 +16,7 @@ function lavTestdata() {
   const sy = nu.getMonth() + 1 >= 8 ? nu.getFullYear() : nu.getFullYear() - 1;
 
   const d = {
-    format: 'elevoverblik', version: 2, indstillinger: { startMaaned: 8 },
+    format: 'elevoverblik', version: 3, indstillinger: { startMaaned: 8 },
     klasser: [], elever: [], kategorier: [], opgaver: [], karakterer: [], samtaler: [], aftaler: [],
   };
 
@@ -54,19 +54,23 @@ function lavTestdata() {
         [mundtlig, `${y}-11-01`, 'Fremlæggelse'], [mundtlig, `${y + 1}-03-14`, 'Gruppeoplæg'],
         [laesning, `${y}-09-05`, 'Efterår'], [laesning, `${y + 1}-05-02`, 'Forår'],
         [indsats, `${y}-11-05`, 'Efterår'], [indsats, `${y + 1}-03-20`, 'Forår'],
+        // Standpunktskarakterer – i færdighedsregning gives de på 7-trinsskalaen (opgavens egen skala)
+        [problem, `${y}-11-10`, 'S1'], [problem, `${y + 1}-03-05`, 'S2'], [problem, `${y + 1}-06-10`, 'S3'],
+        [faerdighed, `${y}-11-10`, 'S1', null, 'syvtrin'], [faerdighed, `${y + 1}-03-05`, 'S2', null, 'syvtrin'], [faerdighed, `${y + 1}-06-10`, 'S3', null, 'syvtrin'],
       ];
-      for (const [k, dato, navn, maks] of plan) {
+      for (const [k, dato, navn, maks, egenSkala] of plan) {
         if (dato > iDag) continue;
-        const o = { id: id(), klasseId: klasse.id, kategoriId: k.id, navn, dato, maks: maks || null, periode: dato <= s1 ? 1 : dato <= s2 ? 2 : 3 };
+        const o = { id: id(), klasseId: klasse.id, kategoriId: k.id, navn, dato, maks: maks || null, periode: dato <= s1 ? 1 : dato <= s2 ? 2 : 3, skala: egenSkala || null, vaerdier: [] };
+        const skala = egenSkala || k.skala;
         d.opgaver.push(o);
         for (const e of elever) {
           if (r() < 0.05) continue; // fravær
           const a = begraens(e.evne + (r() - 0.5) * 0.35);
           let v;
-          if (k.skala === 'syvtrin') v = ['-3', '00', '02', '4', '7', '10', '12'][Math.min(6, Math.floor(a * 6.2 + 0.4))];
-          else if (k.skala === 'point') v = Math.round(a * maks);
-          else if (k.skala === 'procent') v = Math.round(30 + a * 70);
-          else if (k.skala === 'liste') v = k.vaerdier[a < 0.33 ? 0 : a < 0.75 ? 1 : 2];
+          if (skala === 'syvtrin') v = ['-3', '00', '02', '4', '7', '10', '12'][Math.min(6, Math.floor(a * 6.2 + 0.4))];
+          else if (skala === 'point') v = Math.round(a * maks);
+          else if (skala === 'procent') v = Math.round(30 + a * 70);
+          else if (skala === 'liste') v = k.vaerdier[a < 0.33 ? 0 : a < 0.75 ? 1 : 2];
           else v = vaelg(indsatsTekst);
           d.karakterer.push({ id: id(), elevId: e.id, opgaveId: o.id, vaerdi: v, kommentar: r() < 0.15 ? vaelg(kommentarer) : '' });
         }

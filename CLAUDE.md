@@ -29,6 +29,7 @@ Se kommentaren øverst i `app.js`. Kort fortalt:
 - `opgaver` kan have deres egen `skala` (og `vaerdier` til egne vurderinger). Ellers bruges kategoriens. Brug altid `skalaFor(kat, opg)`.
 - `karakterer` kobler elev og opgave og har `vaerdi` og `kommentar`.
 - Rækkefølgen i `kategorier` er den rækkefølge, kategorierne vises i.
+- Opgaver med navnet S1, S2, S3 … er standpunktskarakterer (`erStandpunkt`). De vises med fed skrift og kan filtreres på karakterfanen.
 
 **Ændres datamodellen:** hæv `VERSION` i `app.js`, og udfyld nye felter i `migrer()`. Den køres ved indlæsning og skal kunne køres flere gange uden at ødelægge noget. Brugerens eksisterende fil skal altid kunne åbnes.
 
