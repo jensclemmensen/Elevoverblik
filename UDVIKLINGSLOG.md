@@ -5,6 +5,10 @@ Versionsnummeret står også øverst i programmet ved siden af "Elevoverblik".
 
 ---
 
+## v15 – 13. november 2026
+**Hele kommentaren vises, når man holder musen over en karakter**
+- Chromes egen lille hjælpeboks skar lange kommentarer af. Programmet har nu sin egen boks, der viser hele kommentaren, også linjeskift. Det gælder både på karakterfanen og på kortene i elevfanen.
+
 ## v14 – 13. november 2026
 **Ctrl + Enter gemmer en kommentar**
 - Når man skriver en kommentar til en karakter, kan man gemme og lukke vinduet med Ctrl + Enter. Almindelig Enter giver stadig en ny linje.

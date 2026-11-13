@@ -289,3 +289,10 @@ dialog::backdrop { background: rgba(20, 25, 35, .45); }
 .grid .standpunkt .opg-navn, .grid td.standpunkt .celle-input, .grid td.gns.standpunkt,
 .kskema .standpunkt .opg-navn, .kskema td.standpunkt { font-weight: 800; }
 .grid .standpunkt .opg-navn, .kskema .standpunkt .opg-navn { font-size: 14px; }
+
+/* Hjælpeboks med hele kommentaren */
+#tip {
+  position: fixed; z-index: 200; max-width: 380px; padding: 8px 11px; pointer-events: none;
+  background: #1d2330; color: #fff; border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, .22);
+  font-size: 13px; font-weight: 400; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere;
+}

@@ -582,7 +582,7 @@ function htmlKarakterRaekker(opgaver, elevK, nummer, kats) {
         const v = k ? visVaerdi(sk, k.vaerdi, o) : '';
         const kom = k?.kommentar || '';
         const titel = [erTal ? '' : v, kom].filter(Boolean).join('\n');
-        return `<td class="${c(i)}${kom ? ' har-kom' : ''}${erTal ? '' : ' tekst-v'}${erStandpunkt(o) ? ' standpunkt' : ''}" title="${esc(titel)}">${v ? esc(v) : '<span class="tom-v">–</span>'}</td>`;
+        return `<td class="${c(i)}${kom ? ' har-kom' : ''}${erTal ? '' : ' tekst-v'}${erStandpunkt(o) ? ' standpunkt' : ''}" data-tip="${esc(titel)}">${v ? esc(v) : '<span class="tom-v">–</span>'}</td>`;
       }).join('')}</tr></tbody>
     </table></div></div>`;
   }).join('');
@@ -684,9 +684,9 @@ function htmlCelle(elev, opg, kat, k, ekstraKlasse = '') {
   return `<td class="celle${sk.skala === 'tekst' || sk.skala === 'liste' ? ' bred' : ''}${ekstraKlasse}"><div class="celle-indre">
     <input class="celle-input${fejl ? ' fejl' : ''}" data-elev="${elev.id}" data-opg="${opg.id}" value="${esc(felt)}"
       ${sk.skala === 'liste' ? `list="dl-${opg.id}"` : ''} autocomplete="off" spellcheck="false"
-      aria-label="${esc(elev.navn)}, ${esc(opg.navn || kat.navn)}" title="${esc(fejl || kom)}">
+      aria-label="${esc(elev.navn)}, ${esc(opg.navn || kat.navn)}" data-tip="${esc(fejl || kom)}">
     <button class="kom-knap${kom ? ' har' : ''}" data-act="kommentar" data-elev="${elev.id}" data-opg="${opg.id}" tabindex="-1"
-      title="${kom ? esc('Kommentar: ' + kom) : 'Tilføj kommentar'}">✎</button>
+      data-tip="${kom ? esc('Kommentar: ' + kom) : 'Tilføj kommentar'}">✎</button>
   </div></td>`;
 }
 function celleAendret(inp) {
@@ -694,14 +694,14 @@ function celleAendret(inp) {
   const sk = skalaFor(find('kategorier', opg.kategoriId), opg);
   const r = fortolk(sk, opg, inp.value);
   if (r.fejl) {
-    inp.classList.add('fejl'); inp.title = r.fejl;
+    inp.classList.add('fejl'); inp.dataset.tip = r.fejl;
     toast(r.fejl, true);
     return;
   }
   inp.classList.remove('fejl');
   saetKarakter(inp.dataset.elev, opg.id, { vaerdi: r.vaerdi });
   inp.value = feltVaerdi(sk, r.vaerdi);
-  inp.title = D.karakterer.find((x) => x.elevId === inp.dataset.elev && x.opgaveId === opg.id)?.kommentar || '';
+  inp.dataset.tip = D.karakterer.find((x) => x.elevId === inp.dataset.elev && x.opgaveId === opg.id)?.kommentar || '';
   opdaterGennemsnit(opg, sk);
 }
 function opdaterGennemsnit(opg, sk) {
@@ -1240,5 +1240,33 @@ document.addEventListener('keydown', (e) => {
   const maal = kolonne[i + (op ? -1 : 1)];
   if (maal) { maal.focus(); maal.select(); } else inp.blur();
 });
+
+// ---------- Egen hjælpeboks ved musen (Chromes egen afkorter lange tekster) ----------
+// Elementer med data-tip viser hele teksten – også lange kommentarer over flere linjer.
+const tipBoks = document.createElement('div');
+tipBoks.id = 'tip'; tipBoks.hidden = true; tipBoks.setAttribute('role', 'tooltip');
+document.body.append(tipBoks);
+let tipEl = null, tipTimer = null;
+function skjulTip() { clearTimeout(tipTimer); tipEl = null; tipBoks.hidden = true; }
+function visTip(el) {
+  if (!document.body.contains(el)) return;
+  tipBoks.textContent = el.dataset.tip;
+  tipBoks.hidden = false;
+  const r = el.getBoundingClientRect(), b = tipBoks.offsetWidth, h = tipBoks.offsetHeight;
+  let top = r.bottom + 6;
+  if (top + h > innerHeight - 8) top = Math.max(8, r.top - h - 6);
+  tipBoks.style.top = `${top}px`;
+  tipBoks.style.left = `${Math.max(8, Math.min(r.left, innerWidth - b - 8))}px`;
+}
+document.addEventListener('mouseover', (e) => {
+  const el = e.target.closest?.('[data-tip]');
+  if (el === tipEl) return;
+  skjulTip();
+  if (!el || !el.dataset.tip) return;
+  tipEl = el;
+  tipTimer = setTimeout(() => visTip(el), 300);
+});
+document.addEventListener('mouseout', (e) => { if (tipEl && !tipEl.contains(e.relatedTarget)) skjulTip(); });
+['scroll', 'mousedown', 'keydown'].forEach((t) => document.addEventListener(t, skjulTip, true));
 
 render();
