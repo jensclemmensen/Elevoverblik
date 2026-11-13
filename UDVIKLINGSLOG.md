@@ -5,6 +5,11 @@ Versionsnummeret står også øverst i programmet ved siden af "Elevoverblik".
 
 ---
 
+## v14 – 13. november 2026
+**Ctrl + Enter gemmer en kommentar**
+- Når man skriver en kommentar til en karakter, kan man gemme og lukke vinduet med Ctrl + Enter. Almindelig Enter giver stadig en ny linje.
+- Genvejen virker i alle tekstfelter i programmets vinduer, f.eks. også i noterne til en samtale eller en aftale.
+
 ## v13 – 13. november 2026
 **Klassetrin ved perioderne, når alle år vises**
 - Vælger man "Alle år" på karakterfanen, står klassen nu foran perioden over kolonnerne, f.eks. **8.c 1. samtale 2026/27**. Så kan man se, hvilket klassetrin klassen gik på, da karaktererne blev givet.

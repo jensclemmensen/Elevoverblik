@@ -799,6 +799,10 @@ function aabnDialog(titel, indhold, { slet = false, gemTekst = 'Gem', bred = fal
     $('[data-dlg=annuller]', form).onclick = () => luk(null);
     if (slet) $('[data-dlg=slet]', form).onclick = () => luk({ handling: 'slet' });
     dlg.oncancel = () => res(null);
+    // Ctrl + Enter i et tekstfelt gemmer (almindelig Enter giver ny linje)
+    form.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && e.target.tagName === 'TEXTAREA') { e.preventDefault(); form.requestSubmit(); }
+    });
     dlg.showModal();
     efterAabning?.(form);
     $('input:not([type=hidden]), textarea, select', form)?.focus();
@@ -984,7 +988,8 @@ async function redigerKommentar(elevId, opgaveId) {
     <p class="hjaelp">${esc(kat.navn)} · ${visDato(opg.dato)} · ${SKALAER[sk.skala].navn}</p>
     <label>Karakter / vurdering<input name="vaerdi" value="${esc(nuv)}" ${sk.skala === 'liste' ? `list="dl-k"` : ''} autocomplete="off"></label>
     ${sk.skala === 'liste' ? `<datalist id="dl-k">${sk.vaerdier.map((v) => `<option value="${esc(v)}">`).join('')}</datalist>` : ''}
-    <label>Kommentar<textarea name="kommentar" rows="4">${esc(k?.kommentar || '')}</textarea></label>`,
+    <label>Kommentar<textarea name="kommentar" rows="4">${esc(k?.kommentar || '')}</textarea></label>
+    <p class="hjaelp">Tryk <kbd>Ctrl</kbd> + <kbd>Enter</kbd> for at gemme.</p>`,
   { valider: (v) => fortolk(sk, opg, v.vaerdi).fejl,
     efterAabning: (f) => setTimeout(() => $('textarea', f).focus(), 0) });
   if (!r) return;
