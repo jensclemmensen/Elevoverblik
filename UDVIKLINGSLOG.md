@@ -5,6 +5,10 @@ Versionsnummeret står også øverst i programmet ved siden af "Elevoverblik".
 
 ---
 
+## v19 – 14. november 2026
+**Ingen dato ved "Efter sidste samtale"**
+- Hjælpeboksen med samtalens dato vises nu kun over "1. samtale" og "2. samtale" på karakterfanen, ikke over "Efter sidste samtale".
+
 ## v18 – 14. november 2026
 **Samtalens dato vises, når man holder musen over perioden på karakterfanen**
 - Holder man musen over en periode over kolonnerne, f.eks. "8.a 1. samtale 2026/27", vises datoen for skole-hjem-samtalen i den samme boks som kommentarerne, f.eks. "1. skole-hjem-samtale: 20. Nov. 2026".
