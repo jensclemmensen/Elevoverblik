@@ -5,6 +5,13 @@ Versionsnummeret står også øverst i programmet ved siden af "Elevoverblik".
 
 ---
 
+## v20 – 14. november 2026
+**Samtalens måned står i overskriften i stedet for i en hjælpeboks**
+- Hjælpeboksen med samtalens dato (v18–v19) er fjernet igen.
+- I stedet står samtalens måned og år direkte over kolonnerne på karakterfanen, f.eks. **8.a 1. samtale Nov. 2026** i stedet for "8.a 1. samtale 2026/27". Har man valgt ét skoleår, står der f.eks. "1. samtale Nov. 2026".
+- "Efter sidste samtale" og samtaler, der ikke er oprettet endnu, står uden dato.
+- Er klassens samtaler holdt i flere måneder, vises den måned, hvor flest blev holdt.
+
 ## v19 – 14. november 2026
 **Ingen dato ved "Efter sidste samtale"**
 - Hjælpeboksen med samtalens dato vises nu kun over "1. samtale" og "2. samtale" på karakterfanen, ikke over "Efter sidste samtale".
