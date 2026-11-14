@@ -5,6 +5,12 @@ Versionsnummeret står også øverst i programmet ved siden af "Elevoverblik".
 
 ---
 
+## v18 – 14. november 2026
+**Samtalens dato vises, når man holder musen over perioden på karakterfanen**
+- Holder man musen over en periode over kolonnerne, f.eks. "8.a 1. samtale 2026/27", vises datoen for skole-hjem-samtalen i den samme boks som kommentarerne, f.eks. "1. skole-hjem-samtale: 20. Nov. 2026".
+- Ved "Efter sidste samtale" vises datoen for 2. samtale.
+- Er klassens samtaler holdt over flere dage, vises første og sidste dato. Er samtalen ikke oprettet endnu, står der det.
+
 ## v17 – 13. november 2026
 **Venstre og højre pil flytter mellem cellerne på karakterfanen**
 - Ligesom pil op og ned kan man nu bruge venstre og højre pil til at gå til cellen ved siden af i samme række, også på tværs af kategorierne.

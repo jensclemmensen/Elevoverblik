@@ -169,6 +169,16 @@ function klassensSamtaleDatoer(klasseId, aar) {
   if (s2 <= s1) s2 = `${aar + 1}-07-31`;
   return { s1, s2 };
 }
+/** Tekst til hjælpeboksen over en periode på karakterfanen: datoen for skole-hjem-samtalen. */
+function samtaleDatoTip(klasseId, aar, periode) {
+  const n = periode === 1 ? 1 : 2; // "efter sidste samtale" hører til efter 2. samtale
+  const ids = new Set(D.elever.filter((e) => e.klasseId === klasseId).map((e) => e.id));
+  const datoer = [...new Set(D.samtaler.filter((x) => ids.has(x.elevId) && x.nummer === n && skoleaar(x.dato) === aar).map((x) => x.dato))].sort();
+  const navn = (periode === 3 ? 'Efter ' + SAMTALE_NAVN[n].toLowerCase() : SAMTALE_NAVN[n]);
+  if (!datoer.length) return `${navn}: ikke oprettet endnu`;
+  // Er samtalerne holdt over flere dage, vises første og sidste dato
+  return `${navn}: ${datoer.length === 1 ? kortDato(datoer[0]) : `${kortDato(datoer[0])} – ${kortDato(datoer.at(-1))}`}`;
+}
 function gaetPeriode(klasseId, dato) {
   const { s1, s2 } = klassensSamtaleDatoer(klasseId, skoleaar(dato));
   return dato <= s1 ? 1 : dato <= s2 ? 2 : 3;
@@ -646,7 +656,7 @@ function htmlKlasse() {
   const kg = (gi, foerst = true) => (gi > 0 && foerst ? ' katgraense' : '');
 
   const r1 = grupper.map((g, gi) => `<th class="kat${kg(gi)}" colspan="${g.opg.length + 1}">${esc(g.kat.navn)} <span class="skala">${SKALAER[g.kat.skala].navn}</span></th>`).join('');
-  const r2 = grupper.map((g, gi) => g.perioder.map((p, i) => `<th class="per${i ? ' skift' : kg(gi)}" colspan="${p.opg.length}">${valgtAar === 'alle' ? `<span class="per-klasse">${esc(klasseNavn(klasse, skoleaarStart(p.aar)))}</span> ` : ''}${PERIODER[p.periode]}${valgtAar === 'alle' ? ` <span class="per-aar">${skoleaarTekst(p.aar)}</span>` : ''}</th>`).join('')
+  const r2 = grupper.map((g, gi) => g.perioder.map((p, i) => `<th class="per${i ? ' skift' : kg(gi)}" colspan="${p.opg.length}" data-tip="${esc(samtaleDatoTip(klasse.id, p.aar, p.periode))}">${valgtAar === 'alle' ? `<span class="per-klasse">${esc(klasseNavn(klasse, skoleaarStart(p.aar)))}</span> ` : ''}${PERIODER[p.periode]}${valgtAar === 'alle' ? ` <span class="per-aar">${skoleaarTekst(p.aar)}</span>` : ''}</th>`).join('')
     + `<th class="ny${kg(gi, !g.opg.length)}" rowspan="2"><button class="ny-knap" data-act="ny-opgave" data-kat="${g.kat.id}" title="Ny opgave i ${esc(g.kat.navn)}">+ Ny</button></th>`).join('');
   const r3 = grupper.map((g, gi) => g.opg.map((o, j) => `<th class="opg${sk(g, o)}${kg(gi, j === 0)}"><button class="opg-knap" data-act="rediger-opgave" data-id="${o.id}" title="Redigér ${esc(o.navn || 'opgave')}${o.skala ? esc(' – ' + SKALAER[o.skala].navn) : ''}">
       <span class="opg-navn">${esc(o.navn || '(uden navn)')}</span>
